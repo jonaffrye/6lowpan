@@ -18,13 +18,15 @@
 -module(gen_duty_cycle).
 
 -include("ieee802154.hrl").
+-include("ieee802154_pib.hrl").
+-include("pmod_uwb.hrl").
 
 -callback init(PhyModule) -> State when
       PhyModule :: module(),
       State     :: term().
 -callback on(State, Callback, Ranging) -> Result when
       State       :: term(),
-      Callback    :: gen_mac_rx:input_callback_raw_frame(),
+      Callback    :: input_callback_raw_frame(),
       Ranging     :: boolean(),
       Result      :: {ok, State}
                      | {error, State, Error},
@@ -32,10 +34,10 @@
 -callback off(State) -> {ok, State} when
       State :: term().
 % Add suspend and resume later
--callback tx(State, Frame, CsmaParams, Ranging) -> Result when
-      State :: term(),
-      Frame :: bitstring(),
-      CsmaParams  :: csma_params(),
+-callback tx(State, Frame, Pib, Ranging) -> Result when
+      State       :: term(),
+      Frame       :: bitstring(),
+      Pib         :: pib_state(),
       Ranging     :: ranging_tx(),
       Result      :: {ok, State, RangingInfo}
                     | {error, State, Error},
@@ -66,10 +68,10 @@
 
 -type input_callback_raw_frame() :: fun((Frame                  :: binary(),
                                          LQI                    :: integer(),
-                                         UWBPRF                 :: pmod_uwb:uwb_PRF(),
+                                         UWBPRF                 :: uwb_PRF(),
                                          Security               :: ieee802154:security(),
-                                         UWBPreambleRepetitions :: pmod_uwb:uwb_preamble_symbol_repetition(),
-                                         DataRate               :: pmod_uwb:data_rate(),
+                                         UWBPreambleRepetitions :: uwb_preamble_symbol_repetition(),
+                                         DataRate               :: data_rate(),
                                          Ranging                :: ieee802154:ranging_informations())
                                         -> ok).
 
@@ -89,7 +91,7 @@ start(Module, PhyModule) ->
 -spec turn_on(State, Callback, Ranging) -> Result when
       State    :: state(),
       Callback :: input_callback_raw_frame(),
-      Ranging  :: pmod_uwb:flag(),
+      Ranging  :: flag(),
       Result   :: {ok, State} | {error, State, Error},
       Error    :: atom().
 turn_on({Mod, Sub}, Callback, Ranging) ->
@@ -114,18 +116,18 @@ turn_off({Mod, Sub}) ->
 % <li> `frame_too_long': The frame was too long for the CAP or GTS</li>
 % <li> `channel_access_failure': the CSMA-CA algorithm failed</li>
 % @end
--spec tx_request(State, Frame, CsmaParams, Ranging) -> Result when
+-spec tx_request(State, Frame, Pib, Ranging) -> Result when
       State       :: state(),
       Frame       :: bitstring(),
-      CsmaParams  :: csma_params(),
+      Pib         :: pib_state(),
       Ranging     :: ranging_tx(),
       State       :: state(),
       Result      :: {ok, State, RangingInfo}
                      | {error, State, Error},
       RangingInfo :: ranging_informations(),
       Error       :: tx_error().
-tx_request({Mod, Sub}, Frame, CsmaParams, Ranging) ->
-    case Mod:tx(Sub, Frame, CsmaParams, Ranging) of
+tx_request({Mod, Sub}, Frame, Pib, Ranging) ->
+    case Mod:tx(Sub, Frame, Pib, Ranging) of
         {ok, Sub2, RangingInfo} ->
             {ok, {Mod, Sub2}, RangingInfo};
         {error, Sub2, Err} ->
