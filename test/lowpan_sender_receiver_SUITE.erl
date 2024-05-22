@@ -102,7 +102,7 @@ init_per_testcase(receiver, Config) ->
     Node2MacAddress = ?config(node2_mac_src_address, Config),
     %Node3MacAddress = ?config(node3_mac_src_address, Config),
     
-    Callback = fun lowpan_stack:input_callback/4,
+    Callback = fun lowpan_layer:input_callback/4,
     Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback), % create receiver node
     [{node2, Node2} | Config];
 
@@ -111,7 +111,7 @@ init_per_testcase(receiver2, Config) ->
     %Node1MacAddress = ?config(node1_mac_src_address, Config),
     Node3MacAddress = ?config(node3_mac_src_address, Config),
 
-    Callback = fun lowpan_stack:input_callback/4,
+    Callback = fun lowpan_layer:input_callback/4,
     Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback), % create receiver node
     [{node3, Node3} | Config];
 
@@ -141,8 +141,8 @@ sender(Config) ->
     IPv6Packet = ?config(ipv6_packet, Config),
     IPv6Packet2 = ?config(ipv6_packet2, Config),
     
-    ok = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet]), 
-    ok = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet2]), 
+    ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet]), 
+    ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet2]), 
 
     % io:format("Adding route to routing table on ~p~n", [Node1]),
 
@@ -178,7 +178,7 @@ receiver(Config) ->
     Payload = PcktInfo#ipv6PckInfo.payload, 
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/binary>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_stack, rcv_frame, []),
+    ReceivedData = erpc:call(Node2, lowpan_layer, rcv_frame, []),
   
     io:format("Original comp: ~p~n~nReceived comp: ~p~n", [CompressedIpv6Packet,ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -199,7 +199,7 @@ receiver2(Config) ->
     Payload = PcktInfo#ipv6PckInfo.payload, 
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/binary>>,
 
-    ReceivedData = erpc:call(Node3, lowpan_stack, rcv_frame, []),
+    ReceivedData = erpc:call(Node3, lowpan_layer, rcv_frame, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet,ReceivedData]),
     ReceivedData = CompressedIpv6Packet,

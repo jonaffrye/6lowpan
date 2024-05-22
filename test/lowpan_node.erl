@@ -88,7 +88,7 @@ boot_lowpan_node(Name, Network, NodeMacAddress) ->
 boot_lowpan_node(Name, Network, NodeMacAddress, Callback) ->
     {Pid, Node} = boot_node(Name),
     init_network_layers(Node, Network, mac_extended_address, NodeMacAddress, Callback),
-    erpc:call(Node, lowpan_stack, start, [#{node_mac_addr => NodeMacAddress}]),
+    erpc:call(Node, lowpan_layer, start, [#{node_mac_addr => NodeMacAddress}]),
     {Pid, Node}.
 
 % @private
@@ -104,6 +104,6 @@ init_network_layers(Node, Network, MacAddressType, NodeMacAddress, Callback) ->
 %% @doc Stops a 6LoWPAN node.
 -spec stop_lowpan_node(node(), pid()) -> ok.
 stop_lowpan_node(Node, NodePid) ->
-    erpc:call(Node, lowpan_stack, stop, []),
+    erpc:call(Node, lowpan_layer, stop, []),
     erpc:call(Node, routing_table, stop, []),
     peer:stop(NodePid).

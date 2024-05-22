@@ -52,7 +52,7 @@ tx() ->
 
     Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 58:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/binary>>,
 
-    lowpan_stack:snd_pckt(Ipv6Pckt).
+    lowpan_layer:snd_pckt(Ipv6Pckt).
 
 
 -spec rx_callback(Frame, LinkQuality, Security, Ranging) -> ok when
@@ -134,7 +134,7 @@ start(_Type, _Args) ->
     ieee802154:rx_on(?ENABLED),
 
     Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
-    lowpan_stack:start(#{node_mac_addr => Node1MacAddress}),
+    lowpan_layer:start(#{node_mac_addr => Node1MacAddress}),
     tx(),
     {ok, Supervisor}.
 

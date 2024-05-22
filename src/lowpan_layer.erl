@@ -1,7 +1,7 @@
--module(lowpan_stack). 
+-module(lowpan_layer). 
 -behaviour(gen_statem).
 
-%-include("lowpan_stack.hrl").
+%-include("lowpan_layer.hrl").
 %-include("ieee802154.hrl").
 -include("../src/mac_frame.hrl").
 -include("lowpan.hrl").
