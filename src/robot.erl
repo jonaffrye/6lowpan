@@ -6,7 +6,6 @@
 -include("ieee802154.hrl").
 
 -export([tx/0]).
--export([tx_ranging/0]).
 -export([rx/0]).
 -export([rx_on/0]).
 -export([rx_off/0]).
@@ -14,9 +13,6 @@
 % Benchmarking
 -export([tx_benchmark/0]).
 -export([rx_benchmark/0]).
-
-% CSMA tests
--export([jammer/0]).
 
 % Callbacks
 -export([start/2]).
@@ -43,18 +39,20 @@
 %--- API -----------------------------------------------------------------------
 % Sends/receive only 1 frame
 tx() ->
-    % FrameControl = #frame_control{ack_req = ?ENABLED},
-    pmod_uwb:set_preamble_timeout(?CCA_DURATION),
-    FrameControl = #frame_control{},
-    MacHeader = #mac_header{},
-    ieee802154:transmission({FrameControl, MacHeader, <<"Test">>}).
 
-tx_ranging() ->
-    pmod_uwb:set_preamble_timeout(?CCA_DURATION),
-    FrameControl = #frame_control{ack_req = ?ENABLED},
-    MacHeader = #mac_header{},
-    ieee802154:transmission({FrameControl, MacHeader, <<"Test">>},
-                            ?ALL_RANGING).
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
+    
+
+    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
+    Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
+    PayloadLength = byte_size(Payload),
+
+    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 58:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/binary>>,
+
+    lowpan_stack:snd_pckt(Ipv6Pckt).
 
 
 -spec rx_callback(Frame, LinkQuality, Security, Ranging) -> ok when
@@ -87,22 +85,6 @@ tx(N, Total, Success, Error) ->
         {ok, _} -> tx(N-1, Total+1, Success+1, Error);
         _ -> tx(N-1, Total+1, Success, Error+1)
     end.
-
-jammer() ->
-    ieee802154:rx_off(),
-    jammer(1000).
-
-jammer(0) ->
-    ok;
-jammer(N) ->
-    pmod_uwb:write_tx_data(?JAMMING_DATA),
-    pmod_uwb:write(tx_fctrl, #{txboffs => 2#0,
-                               tr => 2#0,
-                               tflen => ?DATALENGTH}),
-    pmod_uwb:write(sys_ctrl, #{txstrt => 2#1,
-                               txdlys => 0}),
-    pmod_uwb:wait_for_transmission(),
-    jammer(N-1).
 
 tx_benchmark() ->
     ieee802154:set_pib_attribute(mac_pan_id, ?PANID),
@@ -149,8 +131,11 @@ start(_Type, _Args) ->
         _ -> ok
     end,
 
-    double_sided_3_msg:start_link(),
     ieee802154:rx_on(?ENABLED),
+
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    lowpan_stack:start(#{node_mac_addr => Node1MacAddress}),
+    tx(),
     {ok, Supervisor}.
 
 % @private

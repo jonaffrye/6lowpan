@@ -57,7 +57,7 @@ build_iphc_header(IphcHeader)->
 % create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
 %-------------------------------------------------------------------------------
 create_iphc_pckt(IphcHeader, Payload)->
-    <<IphcHeader/bitstring,Payload/bitstring>>.
+    <<IphcHeader/binary,Payload/binary>>.
 
 %-------------------------------------------------------------------------------
 % @doc return value field of a given Ipv6 packet in a record form
@@ -169,7 +169,7 @@ convert_iphc_tuple_to_bin(IphcHeaderTuple)->
     {Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam} = IphcHeaderTuple,
 
     % we add 3 padding bits to make it a multiple of 8
-    Binary = <<?IPHC_DHTYPE, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, 0:3>>,
+    Binary = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2>>,
     Binary.
 
 
@@ -197,7 +197,7 @@ tuple_list_to_binary(CarriedInlineList) ->
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 %    * |0|1|1|TF |N|HLI|C|S|SAM|M|D|DAM| SCI   | DCI   | comp. IPv6 hdr|
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-%    * | non compressed IPv6 fields .....                                  |
+%    * | non compressed IPv6 fields .....                              |
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 %    * | LOWPAN_UDP    | non compressed UDP fields ...                 |
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
@@ -221,6 +221,7 @@ compress_ipv6_header(Ipv6Pckt)->
     SourceAddress = PcktInfo#ipv6PckInfo.sourceAddress, 
     DestAddress = PcktInfo#ipv6PckInfo.destAddress, 
     
+    
     Map = #{},
     List = [], 
 
@@ -237,6 +238,7 @@ compress_ipv6_header(Ipv6Pckt)->
 
     CarrInlineBin = list_to_binary(CarrInlineList),%encode_list_to_bin(CarrInlineList),
     CH = {?IPHC_DHTYPE,TF, NH, HLIM, CID, SAC, SAM, M, DAC, DAM,CarrInlineBin},
+    
     io:format("CompressedHeader in lowpan ~p~n", [CH]),
 
     %io:format("CarrInlineMap: ~p~n", [CarrInlineMap]),
@@ -253,7 +255,9 @@ compress_ipv6_header(Ipv6Pckt)->
             CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/binary, CompressedUdpHeaderBin/binary>>, 
             {CompressedHeader, CarrInlineMap};
         _ -> 
-            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/binary>>, 
+            %CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/binary>>,
+            CompressedHeader = tuple_to_bin(CH), 
+            %io:format("CompressedHeader trans ~p ~n",[CompressedHeader]),
             {CompressedHeader, CarrInlineMap}
     end.
 
@@ -304,22 +308,22 @@ process_nh(NextHeader, CarrInlineMap,CarrInlineList) when NextHeader == ?UDP_PN 
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    {0, CarrInlineMap#{"NextHeader"=>?UDP_PN}, UpdatedList}; % UDP %TODO check compression for UDP
+    {2#0, CarrInlineMap#{"NextHeader"=>?UDP_PN}, UpdatedList}; % UDP %TODO check compression for UDP
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?TCP_PN -> 
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    {0, CarrInlineMap#{"NextHeader"=>?TCP_PN},UpdatedList}; % TCP
+    {2#0, CarrInlineMap#{"NextHeader"=>?TCP_PN},UpdatedList}; % TCP
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?ICMP_PN -> 
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    {0, CarrInlineMap#{"NextHeader"=>?ICMP_PN},UpdatedList}; % ICMPv6
+    {2#0, CarrInlineMap#{"NextHeader"=>?ICMP_PN},UpdatedList}; % ICMPv6
 process_nh(NextHeader, CarrInlineMap, CarrInlineList)  -> 
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    {0, CarrInlineMap#{"NextHeader"=>NextHeader},UpdatedList}.
+    {2#0, CarrInlineMap#{"NextHeader"=>NextHeader},UpdatedList}.
 
 %-------------------------------------------------------------------------------
 % @private
@@ -355,22 +359,22 @@ process_cid(SrcAdd, _, CarrInlineMap, CarrInlineList) ->
     %<<DstAddPrefix:16, _/binary>> = <<DstAdd:128>>, %TODO Check for the DestAddr
 
     case SrcAddPrefix of
-        ?LINK_LOCAL_PREFIX -> {0, CarrInlineMap, CarrInlineList}; 
-        ?MULTICAST_PREFIX -> {0, CarrInlineMap, CarrInlineList};
+        ?LINK_LOCAL_PREFIX -> {2#0, CarrInlineMap, CarrInlineList}; 
+        ?MULTICAST_PREFIX -> {2#0, CarrInlineMap, CarrInlineList};
 
         ?MESH_LOCAL_PREFIX ->
             Bin = <<0:8,0:8>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"CID"=>0},
-            {1, UpdatedMap, UpdatedList}; 
+            {2#1, UpdatedMap, UpdatedList}; 
 
         ?GLOBAL_PREFIX_1 -> 
             Bin = <<1:8, 1:8>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"CID"=>1},
-            {1, UpdatedMap, UpdatedList}; 
+            {2#1, UpdatedMap, UpdatedList}; 
 
         %?GLOBAL_PREFIX_2  -> 
          %   Bin = <<2:8, 2:8>>,
@@ -384,7 +388,7 @@ process_cid(SrcAdd, _, CarrInlineMap, CarrInlineList) ->
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"CID"=>3},
-            {1, UpdatedMap, UpdatedList} 
+            {2#1, UpdatedMap, UpdatedList} 
     end.
 
 %-------------------------------------------------------------------------------
@@ -398,14 +402,14 @@ process_sac(SrcAdd) ->
     <<Prefix:16, _/binary>> = <<SrcAdd:128>>,
     
     case Prefix of
-        ?LINK_LOCAL_PREFIX -> 0; % link-local
-        ?MULTICAST_PREFIX -> 0;
-        ?GLOBAL_PREFIX_1 -> 1;
-        %?GLOBAL_PREFIX_2 -> 1;
-        ?GLOBAL_PREFIX_3 -> 1; 
-        ?MESH_LOCAL_PREFIX -> 1;
-        16#0000 -> 0;
-        _ -> 1
+        ?LINK_LOCAL_PREFIX -> 2#0; % link-local
+        ?MULTICAST_PREFIX -> 2#0;
+        ?GLOBAL_PREFIX_1 -> 2#1;
+        %?GLOBAL_PREFIX_2 -> 2#1;
+        ?GLOBAL_PREFIX_3 -> 2#1; 
+        ?MESH_LOCAL_PREFIX -> 2#1;
+        16#0000 -> 2#0;
+        _ -> 2#1
     end.
 
 %-------------------------------------------------------------------------------
@@ -479,8 +483,8 @@ process_sam(SAC, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 1 ->
 process_m(DstAdd) ->
     <<Prefix:16, _/binary>> = <<DstAdd:128>>,
     case Prefix of
-        ?MULTICAST_PREFIX -> 1;
-        _ -> 0
+        ?MULTICAST_PREFIX -> 2#1;
+        _ -> 2#0
     end.
 
 %-------------------------------------------------------------------------------
@@ -494,14 +498,14 @@ process_dac(DstAdd) ->
     <<Prefix:16, _/binary>> = <<DstAdd:128>>,
 
     case Prefix of
-        ?LINK_LOCAL_PREFIX -> 0; 
-        ?MULTICAST_PREFIX -> 0;
-        ?GLOBAL_PREFIX_1 -> 1;
-        %?GLOBAL_PREFIX_2 -> 1;
-        ?GLOBAL_PREFIX_3 -> 1; 
-        ?MESH_LOCAL_PREFIX -> 1;
-        16#0000 -> 0;
-        _ -> 1
+        ?LINK_LOCAL_PREFIX -> 2#0; 
+        ?MULTICAST_PREFIX -> 2#0;
+        ?GLOBAL_PREFIX_1 -> 2#1;
+        %?GLOBAL_PREFIX_2 -> 2#1;
+        ?GLOBAL_PREFIX_3 -> 2#1; 
+        ?MESH_LOCAL_PREFIX -> 2#1;
+        16#0000 -> 2#0;
+        _ -> 2#1
     end.
 
 %-------------------------------------------------------------------------------
@@ -638,7 +642,7 @@ compress_udp_header(UdpPckt, CarriedInline)->
 
 process_udp_schecksum(Checksum, CarriedInline)->
     case Checksum of % TODO check checksum values
-        0 -> 1;
+        0 -> 2#1;
         _-> CarriedInline  
     end.
 
@@ -650,23 +654,23 @@ process_udp_ports(SrcPort, DstPort, CarriedInline)->
         {<<?Oxf0b: 12, Last4S_Bits:4>>, <<?Oxf0b: 12, Last4D_Bits:4>>} ->
             ToCarr = <<Last4S_Bits, Last4D_Bits>>,
             CarriedInlineList = [CarriedInline, ToCarr], 
-            P = 11, 
+            P = 2#11, 
             {P, CarriedInlineList}; 
 
         {<<?Oxf0:8, Last8S_Bits:8>>, _} ->
             ToCarr = <<Last8S_Bits, DstPort>>,
             CarriedInlineList = [CarriedInline, ToCarr], 
-            P = 10, 
+            P = 2#10, 
             {P, CarriedInlineList}; 
 
         {_, <<?Oxf0:8, Last8D_Bits:8>>} ->
             ToCarr = <<SrcPort, Last8D_Bits>>,
             CarriedInlineList = [CarriedInline, ToCarr], 
-            P = 01, 
+            P = 2#01, 
             {P, CarriedInlineList}; 
 
         {_,_} -> 
-            P = 00, 
+            P = 2#00, 
             ToCarr = <<SrcPort, DstPort>>,
             CarriedInlineList = [CarriedInline, ToCarr], 
             {P, CarriedInlineList}
@@ -706,7 +710,7 @@ build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, Payload) ->
 %-------------------------------------------------------------------------------
 build_datagram_pckt(DtgmHeader, Payload) ->
     Header = build_frag_header(DtgmHeader),
-    <<Header/bitstring, Payload/bitstring>>.
+    <<Header/binary, Payload/binary>>.
 
 %-------------------------------------------------------------------------------
 % @doc Fragment a given Ipv6 packet 
@@ -1254,7 +1258,7 @@ build_mesh_header(MeshHeader)->
        mesh_type = MeshType, v_bit = VBit, f_bit = FBit, hops_left = HopsLeft,
        originator_address = OriginatorAddress, final_destination_address = FinalDestinationAddress
    } = MeshHeader,
-   <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress/bitstring,FinalDestinationAddress/bitstring>>.
+   <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress/binary,FinalDestinationAddress/binary>>.
 
 
 

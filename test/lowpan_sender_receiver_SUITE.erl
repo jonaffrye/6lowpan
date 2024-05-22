@@ -12,7 +12,7 @@ all() -> [{group, unr_simple_tx_rx}].
 
 
 groups() -> [{unr_simple_tx_rx, [sequential] , [{group, simple_tx_rx}]},
-                {simple_tx_rx, [parallel, {repeat, 2}],  [sender]}
+                {simple_tx_rx, [parallel, {repeat, 2}],  [sender, receiver]}
             ].
 
 
@@ -87,6 +87,7 @@ end_per_group(_, Config) ->
 
 init_per_testcase(sender, Config) ->
     Network = ?config(network, Config),
+    io:format("Config ~p~n",[Config]),
 
     Node1MacAddress = ?config(node1_mac_src_address, Config),
     %Node2MacAddress = ?config(node2_mac_src_address, Config),
@@ -140,8 +141,8 @@ sender(Config) ->
     IPv6Packet = ?config(ipv6_packet, Config),
     IPv6Packet2 = ?config(ipv6_packet2, Config),
     
-    no_ack = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet]), 
-    no_ack = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet2]), 
+    ok = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet]), 
+    ok = erpc:call(Node1, lowpan_stack, snd_pckt, [IPv6Packet2]), 
 
     % io:format("Adding route to routing table on ~p~n", [Node1]),
 

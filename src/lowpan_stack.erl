@@ -174,9 +174,11 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
     DestAddress = PcktInfo#ipv6PckInfo.destAddress, 
     Payload = PcktInfo#ipv6PckInfo.payload, 
     DestMacAddress = lowpan:encode_integer(DestAddress), % because return DestAddress is in integer form (TODO)
-
+    PayloadLength = PcktInfo#ipv6PckInfo.payloadLength,
+    
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt), % 1st - compress the header
-    CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
+    CompressedHeaderLen = byte_size(CompressedHeader),
+    CompressedPacket = <<CompressedHeader:CompressedHeaderLen/binary, Payload/binary>>,
     CompPcktLen = byte_size(CompressedPacket),
     io:format("Compressed Pckt length: ~p bytes~n",[CompPcktLen]),
     Fragmentationcheck = lowpan:trigger_fragmentation(CompressedPacket),  % 2nd - check if fragmentation is needed, if so return graments list
@@ -184,7 +186,7 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
     case Fragmentationcheck of 
         {true, Fragments} ->
             Response = lists:foreach(fun({Header, FragPayload})-> % FragPayload consist of <<dispatch_head_compr to orig payload>>
-                                            Pckt = <<Header/binary,FragPayload/bitstring>>,
+                                            Pckt = <<Header/binary,FragPayload/binary>>,
                                             Transmit = ieee802154:transmission({#frame_control{
                                                                                     frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
                                                                                     dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED}, 
@@ -198,7 +200,8 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
                         end, Fragments),
             {next_state, IdleState, Data#{fragments => Fragments}, [{reply, From, Response}]};
         false ->
-                Datagram_tag =  rand:uniform(65536),         
+                Datagram_tag =  rand:uniform(65536),        
+                %% TODO Payload len should be >= 40 bytes 
                 UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
                 Transmit = ieee802154:transmission({#frame_control{
                                                             frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,

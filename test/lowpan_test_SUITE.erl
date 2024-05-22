@@ -319,23 +319,29 @@ compress_header_example1_test(_Config)->
 compress_header_example2_test(_Config)->
     Payload = <<"Hello world this is an ipv6 packet">>,
     PayloadLength = byte_size(Payload), 
-    Tf = 2#11, Nh = 0, Hlim = 2#10, Cid = 1, Sac = 1, Sam = 2#01, M = 0, Dac = 1, Dam = 2#00,
-    ExpectedCarriedInline = #{"CID"=>1,"SAM"=>16#0223DFFFFEA9F7AC,"NextHeader" => 6},
-    ExpectedCarriedInlineList = [<<16#2001066073013728:64>>, <<16#2001A45040070803:64>>],
-    io:format("ExpectedCarriedInlineList: ~p~n", [ExpectedCarriedInlineList]),
-    InlineData = list_to_binary(ExpectedCarriedInlineList),
-    ExpectedHeader = <<?IPHC_DHTYPE,Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData/binary>>,
-    CH = {?IPHC_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
-    io:format("Expected CompressedHeader ~p~n", [CH]),
-    
+
     SrcAddress = <<16#2001066073013728:64, 16#0223DFFFFEA9F7AC:64>>,
     DstAddress = <<16#2001A45040070803:64, 16#0000000000001004:64>>, 
     Ipv6Pckt = <<6:4, 0:8, 0:20, PayloadLength:16, 6:8, 64:8, SrcAddress/binary, DstAddress/binary, Payload/binary>>,
     
+
+    ExpectedCarriedInlineList = [<<16#2001066073013728:64>>, <<16#2001A45040070803:64>>],
+    io:format("ExpectedCarriedInlineList: ~p~n", [ExpectedCarriedInlineList]),
+    InlineData = list_to_binary(ExpectedCarriedInlineList),
+    Tf = 2#11, Nh = 0, Hlim = 2#10, Cid = 1, Sac = 1, Sam = 2#01, M = 0, Dac = 1, Dam = 2#00,
+    ExpectedHeader = <<?IPHC_DHTYPE,Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData/binary>>,
+
+    ExpectedCarriedInline = #{"CID"=>1,"SAM"=>16#0223DFFFFEA9F7AC,"NextHeader" => 6},
+    
+    
+    CH = {?IPHC_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
+    io:format("Expected CompressedHeader ~p~n", [CH]),
+    
+    
     {CompressedHeader,CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt), 
     io:format("Expected ~p~nActual ~p~n",[ExpectedHeader,CompressedHeader]),
 
-    ExpectedCarriedInline = CarriedInlineData, 
+    InlineData = CarriedInlineData, 
     ok.
 
 
