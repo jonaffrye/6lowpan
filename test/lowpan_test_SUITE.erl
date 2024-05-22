@@ -300,14 +300,16 @@ icmp_nh_pckt_comp(_Config)->
 compress_header_example1_test(_Config)->
     Payload = <<"Hello world this is an ipv6 packet">>,
     PayloadLength = byte_size(Payload),
-    Tf = 2#10, Nh = 0, Hlim = 2#11, Cid = 0, Sac = 0, Sam = 2#11, M = 1, Dac = 0, Dam = 2#11,
-    ExpectedCarriedInline = #{"DAM" => 1,"NextHeader" => 58,"TrafficClass" => 224},
-    InlineData = lowpan:map_to_binary(ExpectedCarriedInline),
-    ExpectedHeader = <<Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData/binary>>,
-    
+
     SrcAddress = <<16#FE80:16, 0:48,16#020164FFFE2FFC0A:64>>,
     DstAddress = <<16#FF02:16,16#00000000000:48, 16#0000000000000001:64>>, 
     Ipv6Pckt = <<6:4, 224:8, 0:20, PayloadLength:16, 58:8, 255:8, SrcAddress/binary, DstAddress/binary, Payload/binary>>,
+    
+    Tf = 2#10, Nh = 0, Hlim = 2#11, Cid = 0, Sac = 0, Sam = 2#11, M = 1, Dac = 0, Dam = 2#11,
+    ExpectedCarriedInline = #{"DAM" => 1,"NextHeader" => 58,"TrafficClass" => 224},
+    InlineData = lowpan:map_to_binary(ExpectedCarriedInline),
+    ExpectedHeader = <<?HC1_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData/binary>>,
+    
     
     {CompressedHeader,CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),

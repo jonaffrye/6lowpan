@@ -142,7 +142,7 @@ sender(Config) ->
     IPv6Packet2 = ?config(ipv6_packet2, Config),
     
     ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet]), 
-    ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet2]), 
+    no_ack = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet2]), 
 
     % io:format("Adding route to routing table on ~p~n", [Node1]),
 

@@ -48,7 +48,7 @@ init(Params) ->
     io:format("CurrNodeMacAdd: ~p~n",[CurrNodeMacAdd]),
 
     setup_ets(),
-    set_nodeData_value(CurrNodeMacAdd, CurrNodeMacAdd), 
+    set_nodeData_value(currNodeMacAdd, CurrNodeMacAdd), 
 
     Data = #{node_mac_addr => CurrNodeMacAdd,  %, dest_mac_addr => DstMacAdd,
             datagram_map => #{}},
@@ -108,7 +108,7 @@ input_callback(Frame, _, _, _) ->
 
     CurrNodeMacAdd = get_nodeData_value(currNodeMacAdd),
     DstMacAdd = MH#mac_header.dest_addr, 
-    %io:format("~nIn Callback~nCurrNodeMacAdd: ~p~nDstMacAdd: ~p~n",[CurrNodeMacAdd,DstMacAdd]),
+    io:format("~nIn Callback~nCurrNodeMacAdd: ~p~nDstMacAdd: ~p~n",[CurrNodeMacAdd,DstMacAdd]),
 
     From = MH#mac_header.src_addr, 
 
