@@ -12,7 +12,7 @@
     compress_header_example2_test/1, link_local_addr_pckt_comp/1, 
     multicast_addr_pckt_comp/1, global_context_pckt_comp1/1, 
     udp_nh_pckt_comp/1, tcp_nh_pckt_comp/1, 
-    icmp_nh_pckt_comp/1
+    icmp_nh_pckt_comp/1, robot_tx/1
 
 ]).
 
@@ -22,7 +22,7 @@ all() ->
         reassemble_fragments_list_test, reassemble_single_fragments_test,
         reassemble_full_ipv6_pckt_test, compress_header_example1_test, 
         compress_header_example2_test, link_local_addr_pckt_comp, 
-        multicast_addr_pckt_comp, global_context_pckt_comp1,
+        multicast_addr_pckt_comp, global_context_pckt_comp1,robot_tx,
         udp_nh_pckt_comp, tcp_nh_pckt_comp, icmp_nh_pckt_comp
 
     ].
@@ -300,6 +300,49 @@ compress_header_example2_test(_Config)->
 
     ExpectedHeader = CompressedHeader, 
     ExpectedCarriedInline = CarriedInlineData, 
+
+    ok.
+
+robot_tx(_Config)->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
+    
+
+    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
+    Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
+    PayloadLength = byte_size(Payload),
+
+    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 58:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/binary>>,
+
+    Tf = 2#00, Nh = 0, Hlim = 2#11, Cid = 0, Sac = 0, Sam = 2#01, M = 0, Dac = 0, Dam = 2#01,
+    ExpectedCarriedInline = #{"SAM"=>14627373598910709761, "DAM" => 14627373598910709762,"NextHeader" => 58,"TrafficClass" => 224, "FlowLabel"=>2},
+    InlineData = <<0:2, 56:6, 0:4, 2:20, 58:8, 14627373598910709761:64, 14627373598910709762:64>>,%lowpan:map_to_binary(ExpectedCarriedInline),
+    ExpectedHeader = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
+    
+    
+    {CompressedHeader,CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
+
+    ExpectedHeader = CompressedHeader, 
+            
+    ExpectedCarriedInline = CarriedInlineData,
+
+
+    %%-------------------------------GETTING COMPRESSED PACKET-------------
+
+    CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
+    Datagram_tag =  rand:uniform(65536),         
+    CompPcktLen = byte_size(CompressedPacket),
+    UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
+    io:format("Pckt len: ~p bytes~n",[byte_size(UnFragPckt)]),
+    io:format("Pckt: ~n~p",[UnFragPckt]),
+
+    <<_:240, UnPayload/bitstring>> = UnFragPckt, 
+
+    io:format("Payload: ~n~p",[UnPayload]),
+
 
     ok.
 
