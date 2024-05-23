@@ -455,7 +455,8 @@ process_sam(SAC, 1, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 1 ->
     <<_:64, Last64Bits:64>> = SrcAddBits,
 
     case SrcAddBits of
-        <<0:128>> -> 
+         %TODO get context address 
+        <<0:128>> ->
             {2#11,CarrInlineMap, CarrInlineList}; % the address is fully elided and derived from the context
         
         <<_:16, _:48, 16#000000FFFE00:48, _:16>> -> 
@@ -465,15 +466,15 @@ process_sam(SAC, 1, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 1 ->
             UpdatedMap = CarrInlineMap#{"SAM"=>Last16Bits},
             {2#10, UpdatedMap, UpdatedList}; % the first 64 bits are derived from the context, last 16 IID bits are carried in-line
 
-         <<_:16, _:48, _:64>> -> 
+         <<_:16, _:48, _:64>> -> %TODO how to represente first context 64 bit 
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"SAM"=>Last64Bits},
-            {2#01, UpdatedMap, UpdatedList}; % the first 64 bits are derived from the context, last 64 bits IID are carried in-line
+            {2#01, UpdatedMap, UpdatedList} % the first 64 bits are derived from the context, last 64 bits IID are carried in-line
 
-        _ -> 
-            {2#00,CarrInlineMap, CarrInlineList} %  the unspecified address ::
+        % _ -> 
+        %     {2#00,CarrInlineMap, CarrInlineList} %  the unspecified address ::
 
     end.
 
@@ -952,10 +953,14 @@ decode_sam(SAC, SAM, CarriedInline, MacIID, _) when SAC == 0 ->
 
 decode_sam(SAC, SAM, CarriedInline, _, Context) when SAC == 1->
     case SAM of
-        2#00 -> % the unspecified address ::
-            SrcAdd = <<0:128>>,
-            {SrcAdd, CarriedInline}; 
-        
+        % 2#00 -> % the unspecified address ::
+        %     SrcAdd = <<0:128>>,
+        %     {SrcAdd, CarriedInline}; 
+        2#00-> % full add carried
+            <<A:8,B:8,C:8,D:8,E:8,F:8,G:8,H:8,A2:8,B2:8,C2:8,D2:8,E2:8,F2:8,G2:8,H2:8, Rest/binary>> = CarriedInline,
+            SrcAdd = <<A,B,C,D,E,F,G,H,A2,B2,C2,D2,E2,F2,G2,H2>>,
+            {SrcAdd, Rest};
+
         2#01 -> % last 64bits carried
             <<A:8,B:8,C:8,D:8,E:8,F:8,G:8,H:8, Rest/binary>> = CarriedInline,
             ContextAddr = maps:get(Context, ?Context_id_table),
@@ -1020,7 +1025,11 @@ decode_dam(M, DAC, DAM, CarriedInline, _, Context) when  M == 0; DAC == 1->
             ContextAddr = maps:get(Context, ?Context_id_table),
             DstAdd = <<ContextAddr/binary, Last64Bits/binary>>,
             {DstAdd, Rest};
-        2#00 -> {error_reserved, CarriedInline}
+        2#00-> % full add carried
+            <<A:8,B:8,C:8,D:8,E:8,F:8,G:8,H:8,A2:8,B2:8,C2:8,D2:8,E2:8,F2:8,G2:8,H2:8, Rest/binary>> = CarriedInline,
+            DstAdd = <<A,B,C,D,E,F,G,H,A2,B2,C2,D2,E2,F2,G2,H2>>,
+            {DstAdd, Rest}
+        % 2#00 -> {error_reserved, CarriedInline}
     end;
 
 
