@@ -113,7 +113,7 @@ multicast_addr_pckt_comp(_Config)->
         "NextHeader" => 0,"ECN" => 0, "FlowLabel"=>2},
 
     Dest = IPv6Header#ipv6_header.destination_address,
-    InlineData = <<0:8, 2:24,0:8, 16#CAFEDECA00000001:64, Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
+    InlineData = <<0:2, 0:2, 2:20,0:8, 16#CAFEDECA00000001:64, Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
     
     ExpectedHeader = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
@@ -149,7 +149,7 @@ global_context_pckt_comp1(_Config)->
     
     Dest = IPv6Header#ipv6_header.destination_address,
     Src = IPv6Header#ipv6_header.source_address,
-    InlineData = <<0:8, 3:24,0:8, Src/binary, Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
+    InlineData = <<0:2,0:2, 3:20,0:8, Src/binary, Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
     ExpectedHeader = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader,CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
@@ -270,7 +270,7 @@ compress_header_example1_test(_Config)->
     
     Tf = 2#10, Nh = 0, Hlim = 2#11, Cid = 0, Sac = 0, Sam = 2#11, M = 1, Dac = 0, Dam = 2#11,
     ExpectedCarriedInline = #{"DAM" => 1,"NextHeader" => 58,"TrafficClass" => 224},
-    InlineData = <<224:8, 58:8, 1:8>>,%lowpan:map_to_binary(ExpectedCarriedInline),
+    InlineData = <<0:2, 56:6, 58:8, 1:8>>,%lowpan:map_to_binary(ExpectedCarriedInline),
     ExpectedHeader = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
     
     

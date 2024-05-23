@@ -271,20 +271,20 @@ process_tf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
 
         {_, _, 0} -> 
             UpdatedMap = CarrInlineMap#{"TrafficClass"=>TrafficClass},
-            Bin = <<TrafficClass:8>>,
+            Bin = <<ECN:2, DSCP:6>>, % 8 bits tot
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             {2#10, UpdatedMap, UpdatedList};% Flow Label is elided
             
         {_, 0, _} -> 
             UpdatedMap = CarrInlineMap#{"ECN"=>ECN,"FlowLabel"=>FlowLabel},
-            Bin = <<ECN:8, FlowLabel:24>>,
+            Bin = <<ECN:2, 0:2, FlowLabel:20>>, % 24 bits tot 
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             {2#01, UpdatedMap, UpdatedList}; % DSCP is elided
         _ -> 
             UpdatedMap = CarrInlineMap#{"TrafficClass"=>TrafficClass,"FlowLabel"=>FlowLabel},
-            Bin = <<TrafficClass:8, FlowLabel:24>>,
+            Bin = <<ECN:2, DSCP:6, 0:4, FlowLabel:20>>, % 32 bits tot
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             {2#00, UpdatedMap,UpdatedList}  % ECN, DSCP, and Flow Label are carried inline
@@ -877,7 +877,7 @@ decode_cid(CID, CarriedInline) when CID == 1 ->
 %-------------------------------------------------------------------------------
 decode_tf(TF, CarriedInline) ->
     % TODO, check max value on 20bits for FL, and infer bit split
-    <<TrafficClass:8, FL1:8, FL2:8,FL3:8, Rest/binary>> = CarriedInline,
+    <<TrafficClass:8, FL1:8, FL2:8,FL3:8, Rest/bitstring>> = CarriedInline,
 
     FlowLabel = <<FL1,FL2,FL3>>,
 
@@ -886,13 +886,30 @@ decode_tf(TF, CarriedInline) ->
             {<<0:8>>, <<0:20>>, CarriedInline};
 
         2#10 -> % Flow Label is elided, retrieve TF value carriedInline => get first 8bit of CarriedInline 
-            {TrafficClass,<<0:20>>, Rest};
+            
+            % get 8 bits of carried inline 
+            <<ECN:2, DSCP:6, Rest/bitstring>> = CarriedInline,
+            TrafficClass = <<ECN/binary, DSCP/binary>>,
+            FlowLabel = <<0:20>>,
+
+            {TrafficClass,FlowLabel, Rest};
 
         2#01 -> % only DSCP is elided
+
+            % get first 24 bits of carried inline 
+            <<ECN_PADDING:4, FL:20, Rest/bitstring>> = CarriedInline,
+            TrafficClass = <<ECN_PADDING:8>>,
+            FlowLabel = <<FL:20>>,
+
             {TrafficClass,FlowLabel, Rest};
             
         2#00 -> % nothing elided
             %io:format("FlowLabel: ~p~n",[FlowLabel]),
+
+            % get 32 bits of carried inline 
+            <<ECN:2, DSCP:6, _:4,  FL:20, Rest/bitstring>> = CarriedInline,
+            TrafficClass = <<ECN,DSCP>>,
+            FlowLabel = <<FL:20>>,
             {TrafficClass,FlowLabel, Rest}
     end.
 
