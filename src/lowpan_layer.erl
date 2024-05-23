@@ -10,7 +10,7 @@
 -export([start_link/1, start/1, stop_link/0, stop/0]).
 
 % gen_statem callbacks
--export([init/1, callback_mode/0,terminate/3,code_change/4]).
+-export([init/1, callback_mode/0]).
 -export([idle_state/3]).
 -export([snd_pckt/1]).
 -export([rcv_frame/0]).
@@ -64,7 +64,7 @@ start_link(Params) ->
 % Starts statem
 start(Params) -> 
     gen_statem:start({local, ?MODULE}, ?MODULE, Params, []),
-    io:format("lowpan stack launched on node ~p~n",[node()]). 
+    io:format("lowpan layer launched on node ~p~n",[node()]). 
 
     % case erpc:call(node(), routing_table, start, []) of
     %    {ok, _} -> 
@@ -79,24 +79,25 @@ stop_link() ->
     gen_statem:stop(?MODULE).
 
 % Stops statem
-stop() -> io:format("lowpan stack stopped"), gen_statem:stop(?MODULE).
+stop() -> 
+    io:format("lowpan layer stopped"), 
+    %erpc:call(node(), routing_table, stop, []),
+    gen_statem:stop(?MODULE).
 
 % Send an IPv6 packet
--spec snd_pckt(Ipv6Pckt :: bitstring()) -> ok.
+-spec snd_pckt(Ipv6Pckt :: binary()) -> ok.
 snd_pckt(Ipv6Pckt)->
     % gen_statem:call(StateName, Event)
     gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt}). 
 
 % Receive a processed packet
 rcv_frame()->
-    gen_statem:cast(?MODULE, {frame_rx, self()}), % get Pid and ref
-
-receive
-    {reassembled_packet, ReassembledPacket} -> 
-        ReassembledPacket
-    %after 10000 -> error
-end.
-
+    gen_statem:cast(?MODULE, {frame_rx, self()}), 
+    receive
+        {reassembled_packet, ReassembledPacket} -> 
+            ReassembledPacket
+        after 10000 -> fockin_deadlock
+    end.
 get_next_hop(DestAddress)->
     gen_statem:call(?MODULE, {next_hop_tx, DestAddress}).
 
@@ -108,11 +109,11 @@ input_callback(Frame, _, _, _) ->
 
     CurrNodeMacAdd = get_nodeData_value(currNodeMacAdd),
     DstMacAdd = MH#mac_header.dest_addr, 
-    io:format("~nIn Callback~nCurrNodeMacAdd: ~p~nDstMacAdd: ~p~n",[CurrNodeMacAdd,DstMacAdd]),
+    %io:format("~nIn Callback~nCurrNodeMacAdd: ~p~nDstMacAdd: ~p~n",[CurrNodeMacAdd,DstMacAdd]),
 
-    From = MH#mac_header.src_addr, 
+    %From = MH#mac_header.src_addr, 
 
-    io:format("From node~p~n",[From]),    
+    %io:format("From node~p~n",[From]),    
     BroadcastAdd = <<"ÿÿ">>,
     case DstMacAdd of
         CurrNodeMacAdd ->
@@ -126,7 +127,7 @@ input_callback(Frame, _, _, _) ->
             NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = DstMacAdd},
             NewFrame = {FC, NewMH, Payload},
             io:format("Not the dest, Keep forwarding~n"),
-            ieee802154:transmission(NewFrame)
+            gen_statem:cast(?MODULE, {forward, NewFrame})
         
     end.
     
@@ -157,6 +158,10 @@ idle_state(cast, {new_frame, Payload}, Data = #{datagram_map := DatagramMap}) ->
     UpdatedMap = put_and_reassemble(Payload, DatagramMap, Data),
     {keep_state, Data#{datagram_map => UpdatedMap}};
 
+idle_state(cast, {forward, ReceivedFrame}, Data) ->
+    ieee802154:transmission(ReceivedFrame), 
+    {next_state, idle_state, Data};
+
 idle_state(cast, {collected, Tag, UpdatedMap},  StateData = #{caller := From}) ->
     ReassembledPacket = lowpan:reassemble(Tag, UpdatedMap),
     io:format("Complete for pckt ~p~n", [Tag]),
@@ -178,13 +183,15 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt), % 1st - compress the header
     CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
     CompPcktLen = byte_size(CompressedPacket),
-    io:format("Compressed Pckt length: ~p bytes~n",[CompPcktLen]),
+    io:format("CompPcktLen len: ~p bytes~n",[CompPcktLen]),
+
     Fragmentationcheck = lowpan:trigger_fragmentation(CompressedPacket),  % 2nd - check if fragmentation is needed, if so return graments list
 
     case Fragmentationcheck of 
         {true, Fragments} ->
             Response = lists:foreach(fun({Header, FragPayload})-> % FragPayload consist of <<dispatch_head_compr to orig payload>>
                                             Pckt = <<Header/binary,FragPayload/bitstring>>,
+                                            io:format("Pckt to be transmit len: ~p bytes~n",[byte_size(Pckt)]),
                                             Transmit = ieee802154:transmission({#frame_control{
                                                                                     frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
                                                                                     dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED}, 
@@ -200,6 +207,7 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
         false ->
                 Datagram_tag =  rand:uniform(65536),         
                 UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
+                io:format("Pckt to be transmit len: ~p bytes~n",[byte_size(UnFragPckt)]),
                 Transmit = ieee802154:transmission({#frame_control{
                                                             frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
                                                             dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED
@@ -207,8 +215,8 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
                                                         #mac_header{
                                                             src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},UnFragPckt }),
                 case Transmit of 
-                    {ok, _} -> {next_state, IdleState, Data#{fragments => []}, [{reply, From, ok}]} ; 
-                    {error, Error} -> {next_state, IdleState, Data#{fragments => []}, [{reply, From, Error}]} 
+                    {ok, _} -> {next_state, IdleState, Data, [{reply, From, ok}]} ; 
+                    {error, Error} -> {next_state, IdleState, Data, [{reply, From, Error}]} 
                 end                              
     end.
 
@@ -235,16 +243,17 @@ next_hop_tx_state(_EventType, {next_hop_tx, DestAddress, From}, Data)->
 
 
 
-
-
 put_and_reassemble(Frame, Map, Data)->
+    
     DtgInfo = lowpan:datagram_info(Frame),
+    
     Size = DtgInfo#datagramInfo.datagramSize, 
     Tag = DtgInfo#datagramInfo.datagramTag, 
     Offset = DtgInfo#datagramInfo.datagramOffset, 
     Payload = DtgInfo#datagramInfo.payload, 
-
+    
     io:format("Received ~pth payload: ~p bytes~n",[Offset+1,byte_size(Payload)]),
+
     {UpdatedMap, DatagramComplete} = case maps:is_key(Tag, Map) of
         true ->
             {NewMap, AllReceived} = check_duplicate_frag(Map, Tag, Offset, Size, Payload),
@@ -262,7 +271,7 @@ put_and_reassemble(Frame, Map, Data)->
     
     case DatagramComplete of
         true ->  gen_statem:cast(?MODULE, {collected, Tag, UpdatedMap});
-        false -> io:format("Not all received: ~n"), {keep_state, Data#{datagram_map => UpdatedMap}}
+        false -> io:format("Uncomplete datagram: ~n"), {keep_state, Data#{datagram_map => UpdatedMap}}
     end,
     UpdatedMap.
 
@@ -293,10 +302,4 @@ update_datagram_map(Size, Tag, Offset, Payload, Map)->
 
 callback_mode() ->
     [state_functions].
-
-terminate(_, _, _) ->
-    ok.
-
-code_change(_, _, _, _) ->
-    error(not_implemented).
 

@@ -13,8 +13,8 @@ pkt_encapsulation_test()->
     IPv6Header = #ipv6_header{version =  6, traffic_class = 0, flow_label = 0, payload_length = byte_size(Payload) div 2,
         next_header = 17, hop_limit = 64, source_address = 1,destination_address = 2},
     IPv6Packet = ipv6:build_ipv6_packet(IPv6Header, Payload),
-    DhTypeBinary = <<?IPV6_DHTYPE:8, 0:16>>,
-    ToCheck = <<DhTypeBinary/binary, IPv6Packet/binary>>,
+    DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
+    ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
     ?assertEqual(ToCheck,lowpan:pkt_encapsulation(IPv6Header, Payload)).
 
 fragmentation_test()->
@@ -112,7 +112,7 @@ reassemble_full_ipv6_pckt_test()->
     
     FragmentList = lowpan:fragment_ipv6_packet(Ipv6Pckt),
     Fragments = lists:map(fun({FragHeader, FragPayload})->
-                                <<FragHeader/binary,FragPayload/binary>> 
+                                <<FragHeader/binary,FragPayload/bitstring>> 
                           end, FragmentList),
     Reassembled = lowpan:reassemble_datagrams(Fragments),
     ?assertEqual(Ipv6Pckt, Reassembled).

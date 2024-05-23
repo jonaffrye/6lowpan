@@ -13,7 +13,7 @@
 }).
 
 
-% Returns a Ipv6 packet in a bitstring format
+% Returns a Ipv6 packet in a binary format
 build_ipv6_header(IPv6Header)->
     #ipv6_header{
         version =  Version,
@@ -30,5 +30,5 @@ build_ipv6_header(IPv6Header)->
 
 build_ipv6_packet(IPv6Header, Payload)->
     Header = build_ipv6_header(IPv6Header),
-    IPv6Packet = <<Header/bitstring, Payload/bitstring>>,
+    IPv6Packet = <<Header/binary, Payload/bitstring>>,
     IPv6Packet.

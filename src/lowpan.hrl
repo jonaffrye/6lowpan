@@ -96,7 +96,7 @@
 }).
 
 -record(datagram, {
-    timer,
+    %timer,
     tag,
     size,
     cmpt,

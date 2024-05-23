@@ -194,7 +194,7 @@ terminate(Reason, _) ->
 
 %--- Internal -------------------------------------------------------------------
 tx(NetworkNode, Frame) ->
-    ct:log("Tx frame"),
+    %ct:log("Tx frame"),
     {network_loop, NetworkNode} ! {tx, node(), Frame},
     ok.
 

@@ -98,6 +98,7 @@ init_network_layers(Node, Network, MacAddressType, NodeMacAddress, Callback) ->
     erpc:call(Node, mock_phy_network, start, [spi2, #{network => Network}]), % Starting the the mock driver/physical layer
     erpc:call(Node, ieee802154, start, [#ieee_parameters{phy_layer = mock_phy_network, duty_cycle = duty_cycle_non_beacon, input_callback = Callback}]),
     erpc:call(Node, mock_top_layer, start, []),
+    erpc:call(Node, frame_handler, start, [NodeMacAddress]),
     erpc:call(Node, ieee802154, set_pib_attribute, [MacAddressType, NodeMacAddress]).
 
 
@@ -105,5 +106,4 @@ init_network_layers(Node, Network, MacAddressType, NodeMacAddress, Callback) ->
 -spec stop_lowpan_node(node(), pid()) -> ok.
 stop_lowpan_node(Node, NodePid) ->
     erpc:call(Node, lowpan_layer, stop, []),
-    erpc:call(Node, routing_table, stop, []),
     peer:stop(NodePid).
