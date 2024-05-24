@@ -4,8 +4,9 @@
 
 -include("mac_frame.hrl").
 -include("ieee802154.hrl").
+-include("lowpan.hrl").
 
--export([tx/0]).
+-export([tx/0, tx_unc/0]).
 -export([rx/0]).
 -export([rx_on/0]).
 -export([rx_off/0]).
@@ -50,9 +51,26 @@ tx() ->
     Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
     PayloadLength = byte_size(Payload),
 
-    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 58:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/binary>>,
+    %UdpPckt = <<1025:16, 61617:16, 25:16, 16#f88c:16>>, 
+
+    %Ipv6Pckt = <<6:4, 0:8, 0:20, PayloadLength:16, 17:8, 64:8, Node1Address/binary, Node2Address/binary,UdpPckt/binary, Payload/binary>>,
+
+    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 59:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/bitstring>>,
+
 
     lowpan_layer:snd_pckt(Ipv6Pckt).
+tx_unc()->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
+    Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
+
+    Payload = <<"Hello world">>, 
+    Data = <<?IPV6_DHTYPE,Payload/bitstring>>,
+    ieee802154:transmission({#frame_control{frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
+                                                dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED
+                                            }, 
+                            #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},Data }).
 
 
 -spec rx_callback(Frame, LinkQuality, Security, Ranging) -> ok when

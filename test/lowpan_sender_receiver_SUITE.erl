@@ -2,6 +2,8 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include("../src/lowpan.hrl").
+-include("mac_frame.hrl").
+-include("ieee802154.hrl").
 
 -export([all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_group/2, end_per_group/2, init_per_testcase/2, end_per_testcase/2]).
 -export([sender/1]).
@@ -187,7 +189,7 @@ receiver(Config) ->
 
 % reception of node3 from node1
 receiver2(Config) ->
-    %ct:sleep(100),
+    ct:sleep(100),
     ct:pal("Launching node3..."),
     {Pid3, Node3} = ?config(node3, Config),
     ExpectedIpv6 = ?config(ipv6_packet2, Config),
@@ -204,3 +206,15 @@ receiver2(Config) ->
 
     ct:pal("Node3 done"), 
     lowpan_node:stop_lowpan_node(Node3, Pid3).
+        % Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+        % Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+        % Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
+        % Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
+    
+        % Payload = <<"Hello">>, 
+        % Data = <<?IPV6_DHTYPE,Payload/bitstring>>,
+        % ieee802154:transmission({#frame_control{frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
+        %                                             dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED
+        %                                         }, 
+        %                         #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},Data }).
+    

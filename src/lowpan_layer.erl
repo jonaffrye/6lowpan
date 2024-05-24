@@ -178,10 +178,13 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
     PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
     DestAddress = PcktInfo#ipv6PckInfo.destAddress, 
     Payload = PcktInfo#ipv6PckInfo.payload, 
+    PayloadLen = bit_size(Payload), 
     DestMacAddress = lowpan:encode_integer(DestAddress), % because return DestAddress is in integer form (TODO)
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt), % 1st - compress the header
-    CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
+    io:format("PayloadLen: ~p~n",[PayloadLen]),
+    
+    CompressedPacket = <<CompressedHeader/binary, Payload:PayloadLen/bitstring>>,
     CompPcktLen = byte_size(CompressedPacket),
     io:format("CompPcktLen len: ~p bytes~n",[CompPcktLen]),
 

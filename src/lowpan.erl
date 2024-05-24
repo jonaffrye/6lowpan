@@ -7,7 +7,8 @@
 -export([pkt_encapsulation/2,create_iphc_pckt/2,fragment_ipv6_packet/1,reassemble_datagram/2,reassemble_datagrams/1,
         reassemble/2,build_iphc_header/1,get_ipv6_pkt/2,datagram_info/1,compress_ipv6_header/1, build_datagram_pckt/2,build_firstFrag_pckt/4,
         convert_iphc_tuple_to_bin/1, get_ipv6_pckt_info/1, get_ipv6_payload/1,trigger_fragmentation/1,map_to_binary/1, tuple_list_to_binary/1, 
-        binary_to_lis/1, decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1, tuple_to_bin/1, build_frag_header/1, get_next_hop/1]).
+        binary_to_lis/1, decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1, tuple_to_bin/1, build_frag_header/1, get_next_hop/1,
+        print_as_binary/1, hex_to_binary/1]).
 
 
 %-------------------------------------------------------------------------------
@@ -244,15 +245,21 @@ compress_ipv6_header(Ipv6Pckt)->
     
     %io:format("CarrInlineBin ~p~n", [CarrInlineBin]),
 
+    CarrInlineLen = bit_size(CarrInlineBin),
+    % io:format("CarrInlineLen: ~p~n",[CarrInlineLen]),
     
     case NextHeader of 
         ?UDP_PN -> 
             UdpPckt = get_udp_data(Ipv6Pckt), 
             CompressedUdpHeaderBin = compress_udp_header(UdpPckt, []),
-            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/bitstring, CompressedUdpHeaderBin/binary>>, 
+            CompressedUdpHeaderBinLen = bit_size(CompressedUdpHeaderBin),
+            
+            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin:CarrInlineLen/bitstring, 
+                                                CompressedUdpHeaderBin:CompressedUdpHeaderBinLen/bitstring>>, 
             {CompressedHeader, CarrInlineMap};
         _ -> 
-            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/bitstring>>, 
+            
+            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin:CarrInlineLen/bitstring>>, 
             {CompressedHeader, CarrInlineMap}
     end.
 
@@ -728,6 +735,7 @@ build_first_frag_header(#frag_header{frag_type = FragType, datagram_size = Datag
 %-------------------------------------------------------------------------------
 build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, Payload) ->
     %TODO if wireshark doesn't recongnize it, cange it to binary
+    %PayloadLen = bit_size(Payload),
     <<FragType:5, DatagramSize:11, DatagramTag:16,Payload/bitstring>>.
 
 %-------------------------------------------------------------------------------
@@ -1347,3 +1355,31 @@ get_next_hop(DestAddress)->
     Next_Hop. 
 
 
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+%
+%                                                             Utils functions 
+%
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+
+print_as_binary(Binary) ->
+    Bytes = binary_to_list(Binary),
+    lists:flatten([byte_to_binary(B) ++ " " || B <- Bytes]).
+
+byte_to_binary(B) ->
+    Integer = integer_to_list(B, 2),
+    pad_binary(Integer).
+
+pad_binary(Binary) ->
+    case length(Binary) of
+        8 -> Binary;
+        L -> pad_binary(["0"|Binary])
+    end.
+
+hex_to_binary(Hex) ->
+    Binary = list_to_binary(hex_to_bytes(Hex)),
+    Bytes = binary_to_list(Binary),
+    lists:flatten([byte_to_binary(B) ++ " " || B <- Bytes]).
+
+hex_to_bytes(Hex) ->
+    lists:map(fun(X) -> list_to_integer([X], 16) end, Hex).

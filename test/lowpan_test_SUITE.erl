@@ -1,7 +1,7 @@
 -module(lowpan_test_SUITE).
 
--include_lib("common_test/include/ct.hrl").
 -include("../src/lowpan.hrl").
+
 
 
 -export([all/0, init_per_testcase/1, end_per_testcase/1]).
@@ -308,17 +308,18 @@ robot_tx(_Config)->
     Node2MacAddress = <<16#CAFEDECA00000002:64>>,
 
     Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
+    io:format("PayLen: ~p~n",[bit_size(Payload)]),
     
 
     Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
     Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
     PayloadLength = byte_size(Payload),
 
-    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 58:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/binary>>,
+    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 12:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/bitstring>>,
 
     Tf = 2#00, Nh = 0, Hlim = 2#11, Cid = 0, Sac = 0, Sam = 2#01, M = 0, Dac = 0, Dam = 2#01,
-    ExpectedCarriedInline = #{"SAM"=>14627373598910709761, "DAM" => 14627373598910709762,"NextHeader" => 58,"TrafficClass" => 224, "FlowLabel"=>2},
-    InlineData = <<0:2, 56:6, 0:4, 2:20, 58:8, 14627373598910709761:64, 14627373598910709762:64>>,%lowpan:map_to_binary(ExpectedCarriedInline),
+    ExpectedCarriedInline = #{"SAM"=>14627373598910709761, "DAM" => 14627373598910709762,"NextHeader" => 12,"TrafficClass" => 224, "FlowLabel"=>2},
+    InlineData = <<0:2, 56:6, 0:4, 2:20, 12:8, 14627373598910709761:64, 14627373598910709762:64>>,%lowpan:map_to_binary(ExpectedCarriedInline),
     ExpectedHeader = <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
     
     
@@ -337,11 +338,26 @@ robot_tx(_Config)->
     CompPcktLen = byte_size(CompressedPacket),
     UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
     io:format("Pckt len: ~p bytes~n",[byte_size(UnFragPckt)]),
-    io:format("Pckt: ~n~p",[UnFragPckt]),
 
-    <<_:240, UnPayload/bitstring>> = UnFragPckt, 
 
-    io:format("Payload: ~n~p",[UnPayload]),
+    io:format("Pckt: ~p~n",[UnFragPckt]),
+
+    % TxBin = lowpan:print_as_binary(UnFragPckt),
+    % io:format("~p~n~n",[TxBin]),
+
+    % WiresharkData = "c04d34bf63113800000200cafedeca00000001cafedeca0000000248656c6c6f20776f726c64207468697320697320616e2069707636207061636b657420666f722074657374696e6720707572706f7365",
+    % WiresharDataBin = lowpan:hex_to_binary(WiresharkData), 
+    % io:format("~p~n~n",[WiresharDataBin]),
+
+    
+
+    % 32 bits FragHeader,  16 bits HC1 + 168 carrInHC1 = 216
+    % 432 bits payload 
+    % total pckt len: 81 bytes 
+
+    <<_:216, UnPayload/bitstring>> = UnFragPckt, 
+
+    io:format("Payload: ~p~n",[UnPayload]),
 
 
     ok.
