@@ -5,10 +5,10 @@
 %-include("ieee802154.hrl").
 
 -export([pkt_encapsulation/2,create_iphc_pckt/2,fragment_ipv6_packet/1,reassemble_datagram/2,reassemble_datagrams/1,
-        reassemble/2,build_iphc_header/1,get_ipv6_pkt/2,datagram_info/1,compress_ipv6_header/1, build_datagram_pckt/2,build_firstFrag_pckt/4,
+        reassemble/2,build_iphc_header/1,get_ipv6_pkt/2,datagram_info/1,compress_ipv6_header/1, build_datagram_pckt/2,build_firstFrag_pckt/5,
         convert_iphc_tuple_to_bin/1, get_ipv6_pckt_info/1, get_ipv6_payload/1,trigger_fragmentation/1,map_to_binary/1, tuple_list_to_binary/1, 
         binary_to_lis/1, decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1, tuple_to_bin/1, build_frag_header/1, get_next_hop/1,
-        print_as_binary/1, hex_to_binary/1]).
+        print_as_binary/1, hex_to_binary/1, complete_with_padding/1]).
 
 
 %-------------------------------------------------------------------------------
@@ -51,14 +51,14 @@ build_iphc_header(IphcHeader)->
         sac = Sac, sam = Sam, m = M, dac = Dac, dam = Dam
     } = IphcHeader,
 
-    <<Dispatch:8,Tf:2,Nh:1,Hlim:2,Cid:1,Sac:1,Sam:2,M:1,Dac:1,Dam:2>>.
+    <<Dispatch:3,Tf:2,Nh:1,Hlim:2,Cid:1,Sac:1,Sam:2,M:1,Dac:1,Dam:2>>.
 
 
 %-------------------------------------------------------------------------------
 % create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
 %-------------------------------------------------------------------------------
 create_iphc_pckt(IphcHeader, Payload)->
-    <<IphcHeader/binary,Payload/binary>>.
+    <<IphcHeader/binary,Payload/bitstring>>.
 
 %-------------------------------------------------------------------------------
 % @doc return value field of a given Ipv6 packet in a record form
@@ -236,30 +236,24 @@ compress_ipv6_header(Ipv6Pckt)->
     {DAM, CarrInlineMap, CarrInlineList} = process_dam(M, DAC, CID, DestAddress, UpdateMap4, UpdatedList4),
 
 
-    CarrInlineBin = list_to_binary(CarrInlineList),%encode_list_to_bin(CarrInlineList),
+    CarrInlineBin = list_to_binary(CarrInlineList),
     CH = {?IPHC_DHTYPE,TF, NH, HLIM, CID, SAC, SAM, M, DAC, DAM,CarrInlineBin},
     io:format("CompressedHeader in lowpan ~p~n", [CH]),
 
-    %io:format("CarrInlineMap: ~p~n", [CarrInlineMap]),
-    %io:format("CarrInlineList: ~p~n", [CarrInlineList]),
-    
-    %io:format("CarrInlineBin ~p~n", [CarrInlineBin]),
-
-    CarrInlineLen = bit_size(CarrInlineBin),
-    % io:format("CarrInlineLen: ~p~n",[CarrInlineLen]),
+    %CarrInlineLen = bit_size(CarrInlineBin),
     
     case NextHeader of 
         ?UDP_PN -> 
             UdpPckt = get_udp_data(Ipv6Pckt), 
             CompressedUdpHeaderBin = compress_udp_header(UdpPckt, []),
-            CompressedUdpHeaderBinLen = bit_size(CompressedUdpHeaderBin),
+            %CompressedUdpHeaderBinLen = bit_size(CompressedUdpHeaderBin),
             
-            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin:CarrInlineLen/bitstring, 
-                                                CompressedUdpHeaderBin:CompressedUdpHeaderBinLen/bitstring>>, 
+            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/binary, 
+                                                CompressedUdpHeaderBin/binary>>, 
             {CompressedHeader, CarrInlineMap};
         _ -> 
             
-            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin:CarrInlineLen/bitstring>>, 
+            CompressedHeader = <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2,CarrInlineBin/binary>>, 
             {CompressedHeader, CarrInlineMap}
     end.
 
@@ -733,10 +727,10 @@ build_first_frag_header(#frag_header{frag_type = FragType, datagram_size = Datag
     <<FragType:5, DatagramSize:11, DatagramTag:16>>.
 
 %-------------------------------------------------------------------------------
-build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, Payload) ->
+build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, CompressedHeader, Payload) ->
     %TODO if wireshark doesn't recongnize it, cange it to binary
     %PayloadLen = bit_size(Payload),
-    <<FragType:5, DatagramSize:11, DatagramTag:16,Payload/bitstring>>.
+    <<FragType:5, DatagramSize:11, DatagramTag:16,CompressedHeader/binary, Payload/bitstring>>.
 
 %-------------------------------------------------------------------------------
 % create a datagram packet (fragments)
@@ -1383,3 +1377,11 @@ hex_to_binary(Hex) ->
 
 hex_to_bytes(Hex) ->
     lists:map(fun(X) -> list_to_integer([X], 16) end, Hex).
+
+complete_with_padding(Packet)->
+    HeaderLengthBits = bit_size(Packet),
+
+    % Determine the exact nbr of bit necessary 
+    PaddingBits = (8 - (HeaderLengthBits rem 8)) rem 8,
+
+    <<Packet/bitstring, 0:PaddingBits>>.

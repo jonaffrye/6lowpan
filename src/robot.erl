@@ -6,7 +6,7 @@
 -include("ieee802154.hrl").
 -include("lowpan.hrl").
 
--export([tx/0, tx_unc/0]).
+-export([tx/0, tx_unc_ipv6/0, tx_iphc_pckt_ipv6/0, tx_frag_iphc_pckt_ipv6/0]).
 -export([rx/0]).
 -export([rx_on/0]).
 -export([rx_off/0]).
@@ -51,26 +51,87 @@ tx() ->
     Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
     PayloadLength = byte_size(Payload),
 
-    %UdpPckt = <<1025:16, 61617:16, 25:16, 16#f88c:16>>, 
-
-    %Ipv6Pckt = <<6:4, 0:8, 0:20, PayloadLength:16, 17:8, 64:8, Node1Address/binary, Node2Address/binary,UdpPckt/binary, Payload/binary>>,
-
-    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 59:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/bitstring>>,
-
+    Ipv6Pckt = <<6:4, 224:8, 2:20, PayloadLength:16, 12:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/bitstring>>,
 
     lowpan_layer:snd_pckt(Ipv6Pckt).
-tx_unc()->
+
+tx_unc_ipv6()->
     Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
     Node2MacAddress = <<16#CAFEDECA00000002:64>>,
-    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
-    Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
 
-    Payload = <<"Hello world">>, 
-    Data = <<?IPV6_DHTYPE,Payload/bitstring>>,
-    ieee802154:transmission({#frame_control{frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,
-                                                dest_addr_mode = ?EXTENDED,  ack_req = ?ENABLED
-                                            }, 
-                            #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},Data }).
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    Frame = <<?IPV6_DHTYPE:8, Payload/bitstring>>,
+
+    io:format("Frame ~p~n",[Frame]),
+    io:format("Fragment size: ~p bytes~n", [byte_size(Frame)]),
+
+    FrameControl = #frame_control{
+            frame_type = ?FTYPE_DATA, 
+            src_addr_mode = ?EXTENDED,
+            dest_addr_mode = ?EXTENDED
+            }, 
+
+    MacHeader = #mac_header{
+                src_addr = Node1MacAddress, 
+                dest_addr = Node2MacAddress
+                },
+    lowpan_layer:tx(Frame, FrameControl, MacHeader).
+
+tx_iphc_pckt_ipv6()->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    InlineData = <<12:8, 14627373598910709761:64, 14627373598910709762:64>>,
+    ExpectedHeader = <<?IPHC_DHTYPE:3, 3:2, 12:1, 3:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
+
+    % Create the IPHC packet
+    IPHC = lowpan:create_iphc_pckt(ExpectedHeader, Payload),
+    io:format("IphcHeader ~p~n",[IPHC]),
+    io:format("Fragment size: ~p bytes~n", [byte_size(IPHC)]),
+
+    FrameControl = #frame_control{
+            frame_type = ?FTYPE_DATA, 
+            src_addr_mode = ?EXTENDED,
+            dest_addr_mode = ?EXTENDED
+            }, 
+
+    MacHeader = #mac_header{
+                src_addr = Node1MacAddress, 
+                dest_addr = Node2MacAddress
+                },
+    lowpan_layer:tx(IPHC, FrameControl, MacHeader).
+
+tx_frag_iphc_pckt_ipv6()->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    InlineData = <<12:8, 14627373598910709761:64, 14627373598910709762:64>>,
+    ExpectedHeader = <<?IPHC_DHTYPE:3, 3:2, 12:1, 3:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
+
+    %IPHC = lowpan:create_iphc_pckt(ExpectedHeader, Payload),
+    Frag = <<?FRAG1_DHTYPE:5, 1000:11, 12345:16, ExpectedHeader/bitstring>>,
+
+    Frame = <<Frag/binary, Payload/bitstring>>, 
+
+    io:format("Frame ~p~n",[Frame]),
+    io:format("Fragment size: ~p bytes~n", [byte_size(Frame)]),
+
+    FrameControl = #frame_control{
+            frame_type = ?FTYPE_DATA, 
+            src_addr_mode = ?EXTENDED,
+            dest_addr_mode = ?EXTENDED
+            }, 
+
+    MacHeader = #mac_header{
+                src_addr = Node1MacAddress, 
+                dest_addr = Node2MacAddress
+                },
+    lowpan_layer:tx(Frame, FrameControl, MacHeader).
 
 
 -spec rx_callback(Frame, LinkQuality, Security, Ranging) -> ok when
@@ -153,7 +214,7 @@ start(_Type, _Args) ->
 
     Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
     lowpan_layer:start(#{node_mac_addr => Node1MacAddress}),
-    tx(),
+    %tx(),
     {ok, Supervisor}.
 
 % @private

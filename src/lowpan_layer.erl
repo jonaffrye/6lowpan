@@ -7,15 +7,12 @@
 -include("lowpan.hrl").
 
 % API
--export([start_link/1, start/1, stop_link/0, stop/0]).
+-export([start_link/1, start/1, stop_link/0, stop/0, input_callback/4]).
 
 % gen_statem callbacks
--export([init/1, callback_mode/0]).
--export([idle_state/3]).
--export([snd_pckt/1]).
--export([rcv_frame/0]).
+-export([init/1, callback_mode/0, idle_state/3]).
+-export([snd_pckt/1, tx/3, rcv_frame/0]).
 -export([get_next_hop/1]).
--export([input_callback/4]).
 
 -export([pckt_tx_state/3, frame_rx_state/3, next_hop_tx_state/3]).
 
@@ -86,9 +83,14 @@ stop() ->
 
 % Send an IPv6 packet
 -spec snd_pckt(Ipv6Pckt :: binary()) -> ok.
+
 snd_pckt(Ipv6Pckt)->
     % gen_statem:call(StateName, Event)
     gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt}). 
+
+
+tx(Frame, FrameControl, MacHeader)->
+    gen_statem:call(?MODULE, {simple_tx, Frame, FrameControl, MacHeader}). 
 
 % Receive a processed packet
 rcv_frame()->
@@ -96,8 +98,10 @@ rcv_frame()->
     receive
         {reassembled_packet, ReassembledPacket} -> 
             ReassembledPacket
-        after 10000 -> fockin_deadlock
+        %after 720 -> fockin_deadlock
     end.
+
+
 get_next_hop(DestAddress)->
     gen_statem:call(?MODULE, {next_hop_tx, DestAddress}).
 
@@ -158,6 +162,14 @@ idle_state(cast, {new_frame, Payload}, Data = #{datagram_map := DatagramMap}) ->
     UpdatedMap = put_and_reassemble(Payload, DatagramMap, Data),
     {keep_state, Data#{datagram_map => UpdatedMap}};
 
+idle_state({call, From}, {simple_tx, Frame, FrameControl, MacHeader}, Data) ->
+    Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
+    case Transmit of 
+        {ok, _} -> {next_state, idle_state, Data, [{reply, From, ok}]} ; 
+        {error, Error} -> {next_state, idle_state, Data, [{reply, From, Error}]} 
+    end; 
+
+
 idle_state(cast, {forward, ReceivedFrame}, Data) ->
     ieee802154:transmission(ReceivedFrame), 
     {next_state, idle_state, Data};
@@ -181,10 +193,12 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
     PayloadLen = bit_size(Payload), 
     DestMacAddress = lowpan:encode_integer(DestAddress), % because return DestAddress is in integer form (TODO)
 
+    
+
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt), % 1st - compress the header
     io:format("PayloadLen: ~p~n",[PayloadLen]),
     
-    CompressedPacket = <<CompressedHeader/binary, Payload:PayloadLen/bitstring>>,
+    CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
     CompPcktLen = byte_size(CompressedPacket),
     io:format("CompPcktLen len: ~p bytes~n",[CompPcktLen]),
 
@@ -209,7 +223,7 @@ pckt_tx_state(_EventType, {pckt_tx, IdleState, Ipv6Pckt, From}, Data = #{node_ma
             {next_state, IdleState, Data#{fragments => Fragments}, [{reply, From, Response}]};
         false ->
                 Datagram_tag =  rand:uniform(65536),         
-                UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
+                UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen, Datagram_tag, CompressedHeader, Payload),                          
                 io:format("Pckt to be transmit len: ~p bytes~n",[byte_size(UnFragPckt)]),
                 Transmit = ieee802154:transmission({#frame_control{
                                                             frame_type = ?FTYPE_DATA, src_addr_mode = ?EXTENDED,

@@ -1,6 +1,7 @@
 -module(lowpan_test_SUITE).
 
 -include("../src/lowpan.hrl").
+-include("../src/mac_frame.hrl").
 
 
 
@@ -36,7 +37,7 @@ end_per_testcase(_Config) ->
     ok.
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           6LoWPAN IPv6 Packet Encapsulation
+%                                                           6LoWPAN Packet Encapsulation
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
 pkt_encapsulation_test(_Config) ->
@@ -50,9 +51,190 @@ pkt_encapsulation_test(_Config) ->
     ok.
 
 
-% TODO 
+% TODO
 
 % Comp pckt encap with correct dispatch
+
+iphc_pckt_format(_Config) ->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+    io:format("IphcHeader ~p~n",[IphcHeader]),
+
+    % Create the IPHC packet
+    IPCH = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    % Construct the fragment
+    Fragment = <<?FRAG1_DHTYPE:5, 12:11, 4:16, IPCH/bitstring>>,
+    FragmentSize = byte_size(Fragment),
+
+    io:format("Fragment size: ~p bytes~n", [FragmentSize]),
+
+    Frame = {#frame_control{
+                    frame_type = ?FTYPE_DATA, 
+                    src_addr_mode = ?EXTENDED,
+                    dest_addr_mode = ?EXTENDED
+                }, 
+                #mac_header{
+                    src_addr = Node1MacAddress, 
+                    dest_addr = Node2MacAddress
+                },
+                Fragment
+            },
+    
+    {ok, _} = erpc:call(node(), ieee802154, transmission, [Frame]).
+
+frag_iphc_pckt_format(_Config) ->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+
+    % Create the IPHC packet
+    IPCH = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    % Construct the fragment
+    Fragment = <<?FRAG1_DHTYPE:5, 12:11, 4:16, IPCH/bitstring>>,
+    FragmentSize = byte_size(Fragment),
+
+    io:format("Fragment size: ~p bytes~n", [FragmentSize]),
+
+    Frame = {#frame_control{
+                    frame_type = ?FTYPE_DATA, 
+                    src_addr_mode = ?EXTENDED,
+                    dest_addr_mode = ?EXTENDED
+                }, 
+                #mac_header{
+                    src_addr = Node1MacAddress, 
+                    dest_addr = Node2MacAddress
+                },
+                Fragment
+            },
+    
+    {ok, _} = erpc:call(node(), ieee802154, transmission, [Frame]).
+
+msh_ipch_pckt_format(_Config) ->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+
+    % Create the IPHC packet
+    IPCH = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    % Construct the fragment
+    Fragment = <<?FRAG1_DHTYPE:5, 12:11, 4:16, IPCH/bitstring>>,
+    FragmentSize = byte_size(Fragment),
+
+    io:format("Fragment size: ~p bytes~n", [FragmentSize]),
+
+    Frame = {#frame_control{
+                    frame_type = ?FTYPE_DATA, 
+                    src_addr_mode = ?EXTENDED,
+                    dest_addr_mode = ?EXTENDED
+                }, 
+                #mac_header{
+                    src_addr = Node1MacAddress, 
+                    dest_addr = Node2MacAddress
+                },
+                Fragment
+            },
+    
+    {ok, _} = erpc:call(node(), ieee802154, transmission, [Frame]).
+
+msh_frag_ipch_pckt_format(_Config) ->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+
+    % Create the IPHC packet
+    IPCH = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    % Construct the fragment
+    Fragment = <<?FRAG1_DHTYPE:5, 12:11, 4:16, IPCH/bitstring>>,
+    FragmentSize = byte_size(Fragment),
+
+    io:format("Fragment size: ~p bytes~n", [FragmentSize]),
+
+    Frame = {#frame_control{
+                    frame_type = ?FTYPE_DATA, 
+                    src_addr_mode = ?EXTENDED,
+                    dest_addr_mode = ?EXTENDED
+                }, 
+                #mac_header{
+                    src_addr = Node1MacAddress, 
+                    dest_addr = Node2MacAddress
+                },
+                Fragment
+            },
+    
+    {ok, _} = erpc:call(node(), ieee802154, transmission, [Frame]).
+
+msh_brd_iphc_pckt_format(_Config) ->
+    Node1MacAddress = <<16#CAFEDECA00000001:64>>, 
+    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+
+    % Create the IPHC packet
+    IPCH = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    % Construct the fragment
+    Fragment = <<?FRAG1_DHTYPE:5, 12:11, 4:16, IPCH/bitstring>>,
+    FragmentSize = byte_size(Fragment),
+
+    io:format("Fragment size: ~p bytes~n", [FragmentSize]),
+
+    Frame = {#frame_control{
+                    frame_type = ?FTYPE_DATA, 
+                    src_addr_mode = ?EXTENDED,
+                    dest_addr_mode = ?EXTENDED
+                }, 
+                #mac_header{
+                    src_addr = Node1MacAddress, 
+                    dest_addr = Node2MacAddress
+                },
+                Fragment
+            },
+    
+    {ok, _} = erpc:call(node(), ieee802154, transmission, [Frame]).
 % Frag pckt encap with correct dispatch
 % Mesh pckt encap with correct dispatch
 
@@ -336,7 +518,7 @@ robot_tx(_Config)->
     CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
     Datagram_tag =  rand:uniform(65536),         
     CompPcktLen = byte_size(CompressedPacket),
-    UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedPacket),                          
+    UnFragPckt = lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, CompPcktLen,Datagram_tag, CompressedHeader, Payload),                          
     io:format("Pckt len: ~p bytes~n",[byte_size(UnFragPckt)]),
 
 

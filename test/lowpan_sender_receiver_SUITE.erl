@@ -146,6 +146,37 @@ sender(Config) ->
     ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet]), 
     ok = erpc:call(Node1, lowpan_layer, snd_pckt, [IPv6Packet2]), 
 
+    Node1MacAddress =?config(node1_mac_address, Config), 
+    Node2MacAddress = ?config(node2_mac_address, Config), 
+
+    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>, 
+
+    % Construct IPHC header
+    IphcMap = #iphc_header{
+        dispatch = ?IPHC_DHTYPE, tf = 2, nh = 0, hlim = 3, cid = 0,
+        sac = 0, sam = 3, m = 1, dac = 0, dam = 3
+    },
+    IphcHeader = lowpan:build_iphc_header(IphcMap),
+    io:format("IphcHeader ~p~n",[IphcHeader]),
+
+    % Create the IPHC packet
+    IPHC = lowpan:create_iphc_pckt(IphcHeader, Payload),
+
+    io:format("Fragment size: ~p bytes~n", [IPHC]),
+
+    FrameControl = #frame_control{
+            frame_type = ?FTYPE_DATA, 
+            src_addr_mode = ?EXTENDED,
+            dest_addr_mode = ?EXTENDED
+            }, 
+
+    MacHeader = #mac_header{
+                src_addr = Node1MacAddress, 
+                dest_addr = Node2MacAddress
+                },
+
+    ok = erpc:call(Node1, lowpan_layer, tx, [IPHC, FrameControl, MacHeader]), 
+
     % io:format("Adding route to routing table on ~p~n", [Node1]),
 
     % DestAddr = <<16#0003:16>>,
