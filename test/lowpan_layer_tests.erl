@@ -162,7 +162,8 @@ compress_header_ex1_test() ->
     SrcAddress = <<16#FE80:16, 0:48, 16#020164FFFE2FFC0A:64>>,
     DstAddress = <<16#FF02:16, 16#00000000000:48, 16#0000000000000001:64>>,
     Ipv6Pckt =
-        <<6:4, 224:8, 0:20, PayloadLength:16, 58:8, 255:8, SrcAddress/binary, DstAddress/binary, Payload/binary>>,
+        <<6:4, 224:8, 0:20, PayloadLength:16, 58:8, 255:8, SrcAddress/binary, DstAddress/binary,
+            Payload/binary>>,
 
     {CompressedHeader, _, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [Expected, CompressedHeader]),
@@ -196,7 +197,8 @@ compress_header_ex2_test() ->
     SrcAddress = <<16#2001066073013728:64, 16#0223DFFFFEA9F7AC:64>>,
     DstAddress = <<16#2A00145040070803:64, 16#0000000000001004:64>>,
     Ipv6Pckt =
-        <<6:4, 0:8, 0:20, PayloadLength:16, 6:8, 64:8, SrcAddress/binary, DstAddress/binary, Payload/binary>>,
+        <<6:4, 0:8, 0:20, PayloadLength:16, 6:8, 64:8, SrcAddress/binary, DstAddress/binary,
+            Payload/binary>>,
 
     {CompressedHeader, _, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     ?assertEqual(Expected, CompressedHeader),
