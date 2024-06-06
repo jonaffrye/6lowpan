@@ -348,7 +348,7 @@ compress_ipv6_header(Ipv6Pckt) ->
         process_dam(M, DAC, CID, DestAddress, UpdateMap4, UpdatedList4),
 
     CarrInlineBin = list_to_binary(CarrInlineList),
-    CH = {?IPHC_DHTYPE, TF, NH, HLIM, CID, SAC, SAM, M, DAC, DAM, CarrInlineBin},
+    %CH = {?IPHC_DHTYPE, TF, NH, HLIM, CID, SAC, SAM, M, DAC, DAM, CarrInlineBin},
     %io:format("CompressedHeader: ~p~n", [CH]),
     %CarrInlineLen = bit_size(CarrInlineBin),
     case NextHeader of
