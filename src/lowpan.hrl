@@ -111,8 +111,9 @@
           1 => <<16#2000:16, 0:48>>, % global prefix 1
           2 => <<16#2001:16, 0:48>>, % global prefix 2
           3 => <<16#2002:16, 0:48>>}). % global prefix 3
-                                                                                                                                                            % add more context prefix
-
+                                                                                                                                                                                                                                                                                                                                                          % add more context prefix
+-define(SHORT_ADD_LEN, 2).
+-define(EXTENDED_ADD_LEN, 8).
 %-type lowpan_parameters() :: #lowpan_parameters{}.
 
 %----------------------------------------------------Routing table-----------------------------------------------------------
@@ -134,11 +135,30 @@
          final_destination_address,
          payload}).
 
--define(Max_Hops, 15).
--define(node1_addr, <<16#0001:16>>).
--define(node2_addr, <<16#0002:16>>).
--define(node3_addr, <<16#0003:16>>).
--define(Routing_table,
-        #{node1_addr => node3_addr,
-          node2_addr => node1_addr,
-          node3_addr => node2_addr}).
+%%% Constants
+-define(Max_Hops, 10).
+-define(node1_addr, <<16#CAFEDECA00000001:64>>).
+-define(node2_addr, <<16#CAFEDECA00000002:64>>).
+-define(node3_addr, <<16#CAFEDECA00000003:64>>).
+
+-define(Default_routing_table,
+        #{?node1_addr => ?node1_addr,
+          ?node2_addr => ?node2_addr,
+          ?node3_addr => ?node3_addr}).
+
+-define(Node1_routing_table,
+        #{?node1_addr => ?node1_addr,
+          ?node2_addr => ?node3_addr,
+          ?node3_addr => ?node2_addr}).
+
+-define(Node2_routing_table,
+        #{?node1_addr => ?node1_addr,
+          ?node2_addr => ?node2_addr,
+          ?node3_addr => ?node3_addr}).
+
+-define(Node3_routing_table,
+        #{?node1_addr => ?node2_addr,
+          ?node2_addr => ?node2_addr,
+          ?node3_addr => ?node3_addr}).
+
+

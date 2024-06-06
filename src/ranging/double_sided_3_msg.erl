@@ -10,7 +10,6 @@
 -export([start_link/0]).
 -export([initiator/0, initiator/1]).
 -export([rx_callback/4]).
-
 % gen_statem callbacks
 -export([init/1]).
 -export([callback_mode/0]).
@@ -32,16 +31,18 @@ initiator(0) ->
     ranging_utils:do_stats(Measures);
 initiator(N) ->
     initiator(),
-    initiator(N-1).
+    initiator(N - 1).
 
 initiator() ->
     {ok, RangingInfos, Frame} = send_poll(),
     Ref = make_ref(),
     From = {self(), Ref},
     tx(Frame, RangingInfos, From),
-    receive 
-        {Ref, ok} -> ok
-    after 1000 -> error(poll_to)
+    receive
+        {Ref, ok} ->
+            ok
+    after 1000 ->
+        error(poll_to)
     end.
 
 rx_callback(Frame, _LQI, _Security, RangingInfos) ->
@@ -74,14 +75,19 @@ idle({call, From}, {measures}, Data) ->
     #{measures := Measures} = Data,
     {keep_state, Data#{measures := []}, {reply, From, Measures}};
 idle(cast, {tx, From, Frame, RangingInfos}, Data) ->
-    #ranging_informations{ranging_counter_start = PollTx, 
-                          ranging_counter_stop = RespRx} = RangingInfos,
+    #ranging_informations{ranging_counter_start = PollTx, ranging_counter_stop = RespRx} =
+        RangingInfos,
     {ok, FinalRangingInfos} = send_final(Frame),
     #ranging_informations{ranging_counter_start = FinalTx} = FinalRangingInfos,
-    {next_state, wait_report, Data#{poll_tx => PollTx, resp_rx => RespRx, final_tx => FinalTx, from => From}};
+    {next_state,
+     wait_report,
+     Data#{poll_tx => PollTx,
+           resp_rx => RespRx,
+           final_tx => FinalTx,
+           from => From}};
 idle(cast, {rx, _Frame, RangingInfos}, Data) ->
-    #ranging_informations{ranging_counter_start = PollRx,
-                          ranging_counter_stop = RespTx} = RangingInfos,
+    #ranging_informations{ranging_counter_start = PollRx, ranging_counter_stop = RespTx} =
+        RangingInfos,
 
     {next_state, wait_final, Data#{poll_rx => PollRx, resp_tx => RespTx}}.
 
@@ -94,7 +100,12 @@ wait_final(cast, {rx, Frame, RangingInfos}, Data) ->
 wait_report(cast, {rx, Frame, _}, Data) ->
     {_, _, Payload} = Frame,
     <<"REPORT", PollRx:40, RespTx:40, FinalRx:40>> = Payload,
-    #{poll_tx := PollTx, resp_rx := RespRx, final_tx := FinalTx, measures := Measures, from := From} = Data,
+    #{poll_tx := PollTx,
+      resp_rx := RespRx,
+      final_tx := FinalTx,
+      measures := Measures,
+      from := From} =
+        Data,
     Poll = {PollTx, PollRx},
     Resp = {RespTx, RespRx},
     Final = {FinalTx, FinalRx},
@@ -123,7 +134,7 @@ get_results() ->
     gen_statem:call(?MODULE, {measures}).
 
 %--- gen_statem internal -------------------------------------------------------
-send_final(PollFrame) -> 
+send_final(PollFrame) ->
     {FC, MH, _} = PollFrame,
     NewFC = FC#frame_control{ack_req = ?DISABLED},
     Seqnum = rand:uniform(255),
@@ -132,18 +143,20 @@ send_final(PollFrame) ->
     Frame = {NewFC, NewMH, Payload},
     ieee802154:transmission(Frame, ?ALL_RANGING).
 
-send_report(PollRx, RespTx, FinalRx, FinalFrame) -> 
+send_report(PollRx, RespTx, FinalRx, FinalFrame) ->
     {FC, MH, _} = FinalFrame,
     #mac_header{src_pan = DestPan,
                 src_addr = DestAddr,
                 dest_pan = SrcPan,
-                dest_addr = SrcAddr} = MH,
+                dest_addr = SrcAddr} =
+        MH,
     Seqnum = rand:uniform(255),
-    NewMH = MH#mac_header{seqnum = Seqnum,
-                          src_pan = SrcPan,
-                          src_addr = SrcAddr,
-                          dest_pan = DestPan,
-                          dest_addr = DestAddr},
+    NewMH =
+        MH#mac_header{seqnum = Seqnum,
+                      src_pan = SrcPan,
+                      src_addr = SrcAddr,
+                      dest_pan = DestPan,
+                      dest_addr = DestAddr},
     Payload = <<"REPORT", PollRx:40, RespTx:40, FinalRx:40>>,
     Frame = {FC, NewMH, Payload},
     ieee802154:transmission(Frame).
@@ -159,7 +172,7 @@ distance(Poll, Resp, Final) ->
     TReply2 = FinalTx - RespRx,
 
     Sum = TRound1 + TRound2 + TReply1 + TReply2,
-    TProp = ((TRound1*TRound2) - (TReply1*TRound2) )/Sum,
+    TProp = (TRound1 * TRound2 - TReply1 * TRound2) / Sum,
     ToF = TProp * ?TU,
     % io:format("Distance: ~p m~n", [ToF*?C]),
     ToF * ?C.

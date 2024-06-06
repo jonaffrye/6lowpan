@@ -3,16 +3,9 @@
     {vsn, "0.1.0"},
     {registered, []},
     {mod, {robot, []}},
-    {applications, [
-        kernel,
-        stdlib,
-        grisp
-    ]},
-    {env,[
-        {pan_id, <<16#CAFE:16>>}
-    ]},
+    {applications, [kernel, stdlib, grisp]},
+    {env, [{pan_id, <<16#CAFE:16>>}]},
     {modules, []},
-
     {licenses, ["Apache 2.0"]},
     {links, []}
 ]}.

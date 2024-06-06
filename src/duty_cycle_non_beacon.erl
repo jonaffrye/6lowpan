@@ -29,62 +29,53 @@
 
 %--- Types ---------------------------------------------------------------------
 
-
 %--- Records -------------------------------------------------------------------
 -export_type([state/0]).
 
--record(state,
-        {sniff_ont,
-         sniff_offt,
-         phy_layer,
-         loop_pid,
-         callback,
-         mac_tx_state,
-         ranging}).
+-record(state, {sniff_ont, sniff_offt, phy_layer, loop_pid, callback, mac_tx_state, ranging}).
+
 -opaque state() :: #state{}.
 
 %--- gen_duty_cycle callbacks --------------------------------------------------
 -spec init(PhyMod) -> State when
-      PhyMod :: module(),
-      State  :: state().
+    PhyMod :: module(),
+    State :: state().
 init(PhyMod) ->
     MacTXState = gen_mac_tx:start(unslotted_CSMA, PhyMod),
-    #state{sniff_ont = 3,
-           sniff_offt = 4,
-           phy_layer = PhyMod,
-           loop_pid = undefined,
-           callback = undefined,
-           mac_tx_state = MacTXState}.
+    #state{
+        sniff_ont = 3,
+        sniff_offt = 4,
+        phy_layer = PhyMod,
+        loop_pid = undefined,
+        callback = undefined,
+        mac_tx_state = MacTXState
+    }.
 
 -spec on(State, Callback, Ranging) -> Result when
-      State    :: state(),
-      Callback :: gen_duty_cycle:input_callback_raw_frame(),
-      Ranging  :: boolean(),
-      Result   :: {ok, State} | {error, State, rx_already_on}.
+    State :: state(),
+    Callback :: gen_duty_cycle:input_callback_raw_frame(),
+    Ranging :: boolean(),
+    Result :: {ok, State} | {error, State, rx_already_on}.
 on(#state{loop_pid = undefined} = State, Callback, Ranging) ->
     IntState = State#state{callback = Callback},
     LoopPid = rx_loop_on(IntState, Ranging),
-    {ok, IntState#state{loop_pid = LoopPid,
-                     ranging = Ranging}
-    };
+    {ok, IntState#state{loop_pid = LoopPid, ranging = Ranging}};
 on(State, _, _) ->
     {error, State, rx_already_on}.
 
--spec off(State) -> {ok, State} when
-      State :: state().
+-spec off(State) -> {ok, State} when State :: state().
 off(#state{phy_layer = PhyMod, loop_pid = LoopPid} = State) ->
     turn_off_rx_loop(PhyMod, LoopPid, shutdown),
     {ok, State#state{loop_pid = undefined}}.
 
 -spec tx(State, Frame, CsmaParams, Ranging) -> Result when
-    State       :: state(),
-    Frame       :: binary(),
-    CsmaParams  :: pib_state(),
-    Ranging     :: ranging_tx(),
-    Result      :: {ok, State, RangingInfo}
-                   | {error, State, Error},
+    State :: state(),
+    Frame :: binary(),
+    CsmaParams :: pib_state(),
+    Ranging :: ranging_tx(),
+    Result :: {ok, State, RangingInfo} | {error, State, Error},
     RangingInfo :: ranging_informations(),
-    Error       :: tx_error().
+    Error :: tx_error().
 tx(#state{loop_pid = undefined} = State, Frame, CsmaParams, Ranging) ->
     case tx_(State, Frame, CsmaParams, Ranging) of
         {ok, NewMacTxState} ->
@@ -100,31 +91,28 @@ tx(State, Frame, CsmaParams, Ranging) ->
     case TxStatus of
         {ok, NewMacTxState} ->
             RangingInfo = tx_ranging_infos(Ranging, State),
-            {ok,
-             State#state{loop_pid = NewLoopPid,
-                         mac_tx_state = NewMacTxState},
-            RangingInfo};
+            {ok, State#state{loop_pid = NewLoopPid, mac_tx_state = NewMacTxState}, RangingInfo};
         {error, NewMacTxState, Error} ->
-            {error, State#state{loop_pid = NewLoopPid,
-                                mac_tx_state = NewMacTxState},
-             Error}
+            {error, State#state{loop_pid = NewLoopPid, mac_tx_state = NewMacTxState}, Error}
     end.
 
 -spec rx(State) -> {ok, State, Frame} | {error, State, Error} when
-      State :: state(),
-      Frame :: binary(),
-      Error :: atom().
+    State :: state(),
+    Frame :: binary(),
+    Error :: atom().
 rx(#state{phy_layer = PhyMod, loop_pid = undefined} = State) ->
-   case rx_(PhyMod) of
-       {ok, Frame} -> {ok, State, Frame};
-       {error, Error} -> {error, State, Error}
-   end;
+    case rx_(PhyMod) of
+        {ok, Frame} ->
+            {ok, State, Frame};
+        {error, Error} ->
+            {error, State, Error}
+    end;
 rx(State) ->
     {error, State, rx_already_on}.
 
 -spec terminate(State, Reason) -> ok when
-      State :: state(),
-      Reason :: atom().
+    State :: state(),
+    Reason :: atom().
 terminate(State, Reason) ->
     LoopPid = State#state.loop_pid,
     PhyMod = State#state.phy_layer,
@@ -137,14 +125,16 @@ terminate(State, Reason) ->
 
 % Note: this loop should disappear in the futur when we use OS interrupts
 -spec rx_(PhyMod) -> Result when
-      PhyMod :: module(),
-      Result :: {ok, Frame} | {error, Error},
-      Frame  :: binary(),
-      Error  :: atom().
+    PhyMod :: module(),
+    Result :: {ok, Frame} | {error, Error},
+    Frame :: binary(),
+    Error :: atom().
 rx_(PhyMod) ->
     case PhyMod:reception() of
-        {_Length, Frame} -> {ok, Frame};
-        Err -> {error, Err}
+        {_Length, Frame} ->
+            {ok, Frame};
+        Err ->
+            {error, Err}
     end.
 
 %% @doc loop function for the reception
@@ -154,24 +144,27 @@ rx_(PhyMod) ->
 %% If the event is an error, the function ignores it
 %% @end
 -spec rx_loop(PhyMod, Callback, Ranging) -> ok when
-      PhyMod :: module(),
-      Callback :: gen_duty_cycle:input_callback_raw_frame(),
-      Ranging :: flag().
+    PhyMod :: module(),
+    Callback :: gen_duty_cycle:input_callback_raw_frame(),
+    Ranging :: flag().
 rx_loop(PhyMod, Callback, Ranging) ->
     case rx_(PhyMod) of
         {ok, Frame} ->
             RNG = PhyMod:rx_ranging_info(),
             RangingInfo = rx_ranging_infos(Ranging, RNG, PhyMod),
-            Callback(Frame,
-                     snr(PhyMod),
-                     PhyMod:prf_value(),
-                     #security{},
-                     PhyMod:rx_preamble_repetition(),
-                     PhyMod:rx_data_rate(),
-                     RangingInfo),
+            Callback(
+                Frame,
+                snr(PhyMod),
+                PhyMod:prf_value(),
+                #security{},
+                PhyMod:rx_preamble_repetition(),
+                PhyMod:rx_data_rate(),
+                RangingInfo
+            ),
             rx_loop(PhyMod, Callback, Ranging);
         % Log that an error occured ?
-        {error, _Err} -> rx_loop(PhyMod, Callback, Ranging)
+        {error, _Err} ->
+            rx_loop(PhyMod, Callback, Ranging)
     end.
 
 %% @doc
@@ -180,8 +173,8 @@ rx_loop(PhyMod, Callback, Ranging) ->
 %% Note: this function will change when OS interrupts are introduced
 %% @end
 -spec rx_loop_on(State, Ranging) -> pid() when
-      State      :: state(),
-      Ranging    :: flag().
+    State :: state(),
+    Ranging :: flag().
 rx_loop_on(State, Ranging) ->
     PhyMod = State#state.phy_layer,
     SniffOnT = State#state.sniff_ont,
@@ -194,10 +187,11 @@ rx_loop_on(State, Ranging) ->
     spawn_link(fun() -> rx_loop(PhyMod, Callback, Ranging) end).
 
 -spec turn_off_rx_loop(PhyMod, LoopPid, Reason) -> ok when
-      PhyMod  :: module(),
-      LoopPid :: pid() | undefined,
-      Reason  :: atom().
-turn_off_rx_loop(_, undefined, _) -> ok;
+    PhyMod :: module(),
+    LoopPid :: pid() | undefined,
+    Reason :: atom().
+turn_off_rx_loop(_, undefined, _) ->
+    ok;
 turn_off_rx_loop(PhyMod, LoopPid, Reason) ->
     unlink(LoopPid),
     exit(LoopPid, Reason),
@@ -206,27 +200,25 @@ turn_off_rx_loop(PhyMod, LoopPid, Reason) ->
     PhyMod:disable_rx(),
     PhyMod:write(sys_cfg, #{rxwtoe => 1}).
 
--spec suspend_rx_loop(State) -> ok when
-      State :: state().
+-spec suspend_rx_loop(State) -> ok when State :: state().
 suspend_rx_loop(State) ->
     PhyMod = State#state.phy_layer,
     LoopPid = State#state.loop_pid,
     turn_off_rx_loop(PhyMod, LoopPid, shutdown).
 
--spec resume_rx_loop(State) -> pid() when
-      State :: state().
+-spec resume_rx_loop(State) -> pid() when State :: state().
 resume_rx_loop(State) ->
     Ranging = State#state.ranging,
     rx_loop_on(State, Ranging).
 
 % @private
 -spec tx_(State, Frame, Pib, Ranging) -> Result when
-      State   :: state(),
-      Frame   :: bitstring(),
-      Pib     :: pib_state(),
-      Ranging :: ranging_tx(),
-      Result  :: {ok, MacTXState} | {error, MacTXState, Error},
-      Error   :: atom().
+    State :: state(),
+    Frame :: bitstring(),
+    Pib :: pib_state(),
+    Ranging :: ranging_tx(),
+    Result :: {ok, MacTXState} | {error, MacTXState, Error},
+    Error :: atom().
 tx_(State, <<_:2, ?ENABLED:1, _:13, Seqnum:8, _/binary>> = Frame, Pib, Ranging) ->
     MacTXState = State#state.mac_tx_state,
     PhyMod = State#state.phy_layer,
@@ -243,15 +235,15 @@ tx_(State, Frame, CsmaParams, Ranging) ->
 % `no_ack' is returned
 % @end
 -spec tx_ar(MacTXState, PhyMod, Frame, Seqnum, Retry, Pib, Ranging) -> Result when
-      MacTXState :: gen_mac_tx:state(),
-      PhyMod     :: module(),
-      Frame      :: bitstring(),
-      Seqnum     :: non_neg_integer(),
-      Retry      :: non_neg_integer(),
-      Pib        :: pib_state(),
-      Ranging    :: ranging_tx(),
-      Result     :: {ok, MacTxState} | {error, MacTxState, Error},
-      Error      :: atom().
+    MacTXState :: gen_mac_tx:state(),
+    PhyMod :: module(),
+    Frame :: bitstring(),
+    Seqnum :: non_neg_integer(),
+    Retry :: non_neg_integer(),
+    Pib :: pib_state(),
+    Ranging :: ranging_tx(),
+    Result :: {ok, MacTxState} | {error, MacTxState, Error},
+    Error :: atom().
 tx_ar(MacTxState, _, _, _, ?MACMAXFRAMERETRIES, _, _) ->
     {error, MacTxState, no_ack};
 tx_ar(MacTXState, PhyMod, Frame, Seqnum, Retry, Pib, Ranging) ->
@@ -259,29 +251,19 @@ tx_ar(MacTXState, PhyMod, Frame, Seqnum, Retry, Pib, Ranging) ->
     case gen_mac_tx:transmit(MacTXState, Frame, Pib, TxOpts) of
         {ok, NewMacTxState} ->
             case PhyMod:reception(true) of
-                {_, <<_:16, Seqnum:8>>} -> {ok, NewMacTxState};
-                _  -> tx_ar(NewMacTxState,
-                            PhyMod,
-                            Frame,
-                            Seqnum,
-                            Retry+1,
-                            Pib,
-                            Ranging)
+                {_, <<_:16, Seqnum:8>>} ->
+                    {ok, NewMacTxState};
+                _ ->
+                    tx_ar(NewMacTxState, PhyMod, Frame, Seqnum, Retry + 1, Pib, Ranging)
             end;
         {error, NewMacTxState, _Error} ->
-            tx_ar(NewMacTxState,
-                  PhyMod,
-                  Frame,
-                  Seqnum,
-                  Retry+1,
-                  Pib,
-                  Ranging)
+            tx_ar(NewMacTxState, PhyMod, Frame, Seqnum, Retry + 1, Pib, Ranging)
     end.
 
 %--- Internal: Ranging helpers
 % Source: https://forum.qorvo.com/t/how-to-calculate-the-signal-to-noise-ratio-snr-of-dw1000/5585/3
 snr(PhyMod) ->
-    Delta = 87-7.5,
+    Delta = 87 - 7.5,
     RSL = PhyMod:signal_power(),
     RSL + Delta.
 
@@ -290,14 +272,12 @@ snr(PhyMod) ->
 %% @param RxRNG: RNG bit of the received frame
 %% @end
 -spec rx_ranging_infos(DeviceRanging, RxRNG, PhyMod) -> Result when
-      DeviceRanging :: flag(),
-      RxRNG         :: flag(),
-      PhyMod        :: module(),
-      Result        :: ranging_informations().
+    DeviceRanging :: flag(),
+    RxRNG :: flag(),
+    PhyMod :: module(),
+    Result :: ranging_informations().
 rx_ranging_infos(?DISABLED, ?ENABLED, _) ->
-    #ranging_informations{
-       ranging_received = ?RANGING_REQUESTED_BUT_NOT_SUPPORTED
-      };
+    #ranging_informations{ranging_received = ?RANGING_REQUESTED_BUT_NOT_SUPPORTED};
 rx_ranging_infos(_, ?DISABLED, _) ->
     #ranging_informations{ranging_received = ?NO_RANGING_REQUESTED};
 rx_ranging_infos(?ENABLED, ?ENABLED, PhyMod) ->
@@ -306,13 +286,13 @@ rx_ranging_infos(?ENABLED, ?ENABLED, PhyMod) ->
     #{rxtofs := RXTOFS} = PhyMod:read(rx_ttcko),
     #{rxttcki := RXTTCKI} = PhyMod:read(rx_ttcki),
     #ranging_informations{
-       ranging_received = ?RANGING_ACTIVE,
-       ranging_counter_start = RxStamp,
-       ranging_counter_stop = TxStamp,
-       ranging_tracking_interval = RXTTCKI,
-       ranging_offset = RXTOFS,
-       ranging_FOM = <<0:8>>
-      }.
+        ranging_received = ?RANGING_ACTIVE,
+        ranging_counter_start = RxStamp,
+        ranging_counter_stop = TxStamp,
+        ranging_tracking_interval = RXTTCKI,
+        ranging_offset = RXTOFS,
+        ranging_FOM = <<0:8>>
+    }.
 
 tx_ranging_infos(?NON_RANGING, _) ->
     #ranging_informations{ranging_received = false};
@@ -323,10 +303,10 @@ tx_ranging_infos(?ENABLED, State) ->
     #{rxtofs := RXTOFS} = PhyMod:read(rx_ttcko),
     #{rxttcki := RXTTCKI} = PhyMod:read(rx_ttcki),
     #ranging_informations{
-       ranging_received = true,
-       ranging_counter_start = TxStamp,
-       ranging_counter_stop = RxStamp,
-       ranging_tracking_interval = RXTTCKI,
-       ranging_offset = RXTOFS,
-       ranging_FOM = <<0:8>>
-      }.
+        ranging_received = true,
+        ranging_counter_start = TxStamp,
+        ranging_counter_stop = RxStamp,
+        ranging_tracking_interval = RXTTCKI,
+        ranging_offset = RXTOFS,
+        ranging_FOM = <<0:8>>
+    }.

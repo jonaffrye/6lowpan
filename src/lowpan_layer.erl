@@ -4,45 +4,22 @@
 
 -include("lowpan.hrl").
 
-% API
--export([start_link/1, start/1, stop_link/0, stop/0, input_callback/4]).
-% gen_statem callbacks
--export([init/1, callback_mode/0, idle_state/3]).
--export([send_packet/1, send_unc_datagram/3, frame_reception/0, tx/3]).
+-export([init/1, start_link/1, start/1, stop_link/0, stop/0]).
+-export([idle_state/3, callback_mode/0]).
+-export([send_packet/1, send_unc_datagram/3, tx/3]).
+-export([frame_reception/0]).
+-export([input_callback/4]).
 
-%%---Helper -----------------------------------------------------------------------------
-
-setup_ets() ->
-    ets:new(nodeData, [named_table, public, {keypos, 1}]).
-
-set_nodeData_value(Key, Value) ->
-    ets:insert(nodeData, {Key, Value}).
-
-% Get a value from the ETS table
-get_nodeData_value(Key) ->
-    case ets:lookup(nodeData, Key) of
-        [] ->
-            undefined;
-        [{_, Value}] ->
-            Value
-    end.
-
-%--- API --------------------------------------------------------------------------------
-
+%---------- API Functions --------------------------------------------------------------
 %% @doc Starts the 6lowpan statck and creates a link
 %% @end
 init(Params) ->
+    % init_ets_callback_table(node()), % initialize callback table on mock_phy_net
     CurrNodeMacAdd = maps:get(node_mac_addr, Params),
-    %Routing_table = maps:get(default_routing_table, Params),
-    io:format("CurrNodeMacAdd: ~p~n", [CurrNodeMacAdd]),
-
     setup_ets(),
     set_nodeData_value(currNodeMacAdd, CurrNodeMacAdd),
 
-    Data =
-        #{node_mac_addr => CurrNodeMacAdd,
-          %default_routing_table => Routing_table,
-          datagram_map => #{}},
+    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => #{}},
 
     {ok, idle_state, Data}.
 
@@ -53,15 +30,20 @@ start_link(Params) ->
 % Starts statem
 start(Params) ->
     gen_statem:start({local, ?MODULE}, ?MODULE, Params, []),
-    io:format("lowpan layer launched on node ~p~n", [node()]),
+    io:format("~p: Stack successfully launched~n", [node()]),
 
-    case erpc:call(node(), routing_table, start, [?Routing_table]) of
+    RoutingTable  = maps:get(routing_table, Params),
+
+    case erpc:call(node(), routing_table, start, [RoutingTable]) of
         {ok, _} ->
             io:format("~p: Routing table server successfully launched~n", [node()]);
         {error, Reason} ->
             io:format("~p: Failed to start routing table server: ~p~n", [node(), Reason]),
             exit({error, Reason})
-    end.
+    end, 
+    CurrNodeMacAdd = maps:get(node_mac_addr, Params),
+    io:format("Current node mac address: ~p~n", [CurrNodeMacAdd]),
+    io:format("----------------------------------------------------------------------------------------~n").
 
 stop_link() ->
     gen_statem:stop(?MODULE).
@@ -72,124 +54,154 @@ stop() ->
     erpc:call(node(), routing_table, stop, []),
     gen_statem:stop(?MODULE).
 
-% Send an IPv6 packet
--spec send_packet(Ipv6Pckt :: bitstring()) -> ok.
+%-------------------------------------------------------------------------------
+% Send Ipv6 packet using 6lowpan mechanisms
+%-------------------------------------------------------------------------------
 send_packet(Ipv6Pckt) ->
-    gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt}).  % gen_statem:call(StateName, Event)
+    io:format("New packet transmission ~n"),
+    PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
+    SrcAddress = PcktInfo#ipv6PckInfo.sourceAddress,
+   
+    case <<SrcAddress:128>> of  % Check if the source address is multicast
+        <<16#FF:16, _:112>> ->
+            io:format("Error, Source address cannot be a multicast address~n"),
+            {error_multicast_src};
+        _ ->
+            gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo})
+    end.
 
-% Send an uncompressed IPv6 packet
+%-------------------------------------------------------------------------------
+% Send uncompressed Ipv6 packet directly to ieee802154
+%-------------------------------------------------------------------------------
 send_unc_datagram(Ipv6Pckt, FrameControl, MacHeader) ->
     gen_statem:call(?MODULE, {dtg_tx, Ipv6Pckt, FrameControl, MacHeader}).
 
-% Send datagram
+%-------------------------------------------------------------------------------
+% Send datagram packet directly to ieee802154
+%-------------------------------------------------------------------------------
 tx(Frame, FrameControl, MacHeader) ->
     gen_statem:call(?MODULE, {simple_tx, Frame, FrameControl, MacHeader}).
 
-% Receive a processed packet
+%-------------------------------------------------------------------------------
+% Get any datagram from ieee802154
+%-------------------------------------------------------------------------------
 frame_reception() ->
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
-            ReassembledPacket
+            ReassembledPacket    
     after ?REASSEMBLY_TIMEOUT ->
+        %gen_statem:call(?MODULE, {reassembly_timeout, Datagram})
         timeout
     end.
+    
 
+%-------------------------------------------------------------------------------
+% Callback function used to retrieve datagram
+%-------------------------------------------------------------------------------
 input_callback(Frame, _, _, _) ->
     {FC, MH, Datagram} = Frame,
-    io:format("New frame received~n~p~n", [Datagram]),
+    io:format("New frame received~n"),
+    case Datagram of
+        <<>> -> 
+            ok;  
+        Dtg ->
+            io:format("~p~n", [Dtg])
+    end,
 
+    % check packet type, if meshType,retrieve final destination addr 
+    {IsMeshedPckt, DstMacAdd, MeshPckInfo} = case lowpan:contains_mesh_header(Datagram) of
+            {true, MeshInfo} ->
+                {true, MeshInfo#meshInfo.final_destination_address, MeshInfo};
+            false ->
+                {false, MH#mac_header.dest_addr, #{}}
+    end,
+    
+    
     CurrNodeMacAdd = get_nodeData_value(currNodeMacAdd),
-    DstMacAdd = MH#mac_header.dest_addr,
-    SenderMacAdd = MH#mac_header.src_addr,
+    
+    handle_Datagram(IsMeshedPckt, MeshPckInfo, DstMacAdd, CurrNodeMacAdd, FC, MH, Datagram).
 
-    case DstMacAdd of
+%-------------------------------------------------------------------------------
+% Checks if received datagram reached destination or not
+%-------------------------------------------------------------------------------
+handle_Datagram(IsMeshedPckt, MeshPckInfo, DstMacAdd, CurrNodeMacAdd, FC, MH, Datagram) ->
+    DestAdd = case is_integer(DstMacAdd) of
+        true -> 
+            lowpan:encode_integer(DstMacAdd);
+        false ->
+            DstMacAdd
+    end,
+    
+    io:format("Final destination address: ~p",[DestAdd]),
+    io:format("Current node address     : ~p~n",[CurrNodeMacAdd]),
+    
+    case DestAdd of
         CurrNodeMacAdd ->
-            io:format("Dest reached, Forwarding to lowpan layer~n"),
-            gen_statem:cast(?MODULE, {new_frame, Datagram});
+            io:format("Destination node reached, Forwarding to lowpan layer"),
+            % Remove mesh header
+            Rest = lowpan:remove_mesh_header(Datagram),
+            gen_statem:cast(?MODULE, {new_frame, Rest});
         ?BroadcastAdd ->
-            io:format("Ack received~n");
-        _ -> % forward using mesh under
-            NewDatagram =
-                case lowpan:contains_mesh_header(Datagram) of
-                    true ->
-                        io:format("Retrieving mesh header info~n"),
-                        % retrive mesh header data
-                        MeshInfo = lowpan:get_mesh_info(Datagram),
-                        VBit = MeshInfo#meshInfo.v_bit,
-                        FBit = MeshInfo#meshInfo.f_bit,
-                        OrAddr = MeshInfo#meshInfo.originator_address,
-                        DstAddr = MeshInfo#meshInfo.final_destination_address,
-                        HopsLft = MeshInfo#meshInfo.hops_left,
-                        Payload = MeshInfo#meshInfo.payload,
+            io:format("Ack received");
+        _ ->
+            io:format("The datagram needs to be meshed"),
+            forward_packet(IsMeshedPckt, MeshPckInfo, Datagram, FC, MH, CurrNodeMacAdd, DstMacAdd)
+    end, 
+    io:format("------------------------------------------------------~n").
 
-                        case HopsLft of
-                            0 ->
-                                gen_statem:cast(?MODULE,
-                                                {frame_discarded, Datagram}) %discard packet
-                        end,
 
-                        % decrement hopsleft and build new mesh header
-                        MeshHeader =
-                            #mesh_header{v_bit = VBit,
-                                         f_bit = FBit,
-                                         hops_left = HopsLft - 1,
-                                         originator_address = OrAddr,
-                                         final_destination_address = DstAddr},
+%-------------------------------------------------------------------------------
+% Forwards received datagram to next hop
+%-------------------------------------------------------------------------------
+forward_packet(IsMeshedPckt, MeshPckInfo, Datagram, FC, MH, CurrNodeMacAdd, DstMacAdd) ->
+    NewDatagram =
+        case IsMeshedPckt of
+            true ->
+                update_datagram(MeshPckInfo, Datagram);
+            false ->
+                SenderMacAdd = MH#mac_header.src_addr,
+                lowpan:create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd)
+        end,
+    DestMacAddress = lowpan:encode_integer(DstMacAdd),
+    io:format("Searching next hop in the routing table..."),
+    NextHopAddr = routing_table:get_route(DestMacAddress),
+    if 
+        NextHopAddr == DestMacAddress->  io:format("Direct link found~nForwarding to node       : ~p~n",[NextHopAddr]);
+        true -> io:format("Next hop found~nForwarding to node ~p~n",[NextHopAddr])
+    end,
+    io:format("------------------------------------------------------"),
+    NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopAddr},
+    tx(NewDatagram, FC, NewMH).
 
-                        BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
-                        <<BinMeshHeader/binary, Payload/bitstring>>;
-                    false -> % create new mesh header
-                        io:format("Building new mesh header~n"),
-                        % build mesh header
-                        VBit =
-                            case byte_size(SenderMacAdd) of
-                                8 ->
-                                    0;
-                                _ ->
-                                    1
-                            end,
-                        FBit =
-                            case byte_size(DstMacAdd) of
-                                8 ->
-                                    0;
-                                _ ->
-                                    1
-                            end,
-
-                        % build mesh header
-                        MeshHeader =
-                            #mesh_header{v_bit = VBit,
-                                         f_bit = FBit,
-                                         hops_left = ?Max_Hops - 1,
-                                         originator_address = SenderMacAdd,
-                                         final_destination_address = DstMacAdd},
-
-                        BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
-                        <<BinMeshHeader/binary, Datagram/bitstring>>
-                end,
-
-            NextHopAddr = routing_table:get_route(DstMacAdd), % retrieve next hop address
-
-            % send packet
-            NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopAddr},
-            NewFrame = {FC, NewMH, NewDatagram},
-            io:format("Not the dest, Keep forwarding~n"),
-            gen_statem:cast(?MODULE, {forward, NewFrame})
+%-------------------------------------------------------------------------------
+% Decrements hop left field, build new mesh header and returns new datagram
+%-------------------------------------------------------------------------------
+update_datagram(MeshInfo, Datagram) ->
+    HopsLft = MeshInfo#meshInfo.hops_left,
+    case HopsLft of
+        0 ->
+            gen_statem:cast(?MODULE, {frame_discarded, Datagram});
+        _ ->
+        Payload = MeshInfo#meshInfo.payload,
+        OrigAdd = lowpan:encode_integer(MeshInfo#meshInfo.originator_address), 
+        DestAdd = lowpan:encode_integer(MeshInfo#meshInfo.final_destination_address),
+        MeshHeader = 
+            #mesh_header{v_bit = MeshInfo#meshInfo.v_bit,
+                         f_bit = MeshInfo#meshInfo.f_bit,
+                         hops_left = HopsLft - 1,
+                         originator_address = OrigAdd,
+                         final_destination_address = DestAdd},
+        
+        BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+        <<BinMeshHeader/binary, Payload/bitstring>>
     end.
 
-% --- state -----------
+%---------- States --------------------------------------------------------------------
 
-%--------------------------------------------------------
-% In the Idle state, when a pckt_tx event is received
-% compress the header, fragment the pckt and transmit it
-% to the mac layer via ieee802154
-% state_name(EventType, EventContent, Data)
-% EventType specify the type of event
-% EventContent is the previous state
-% Data, the current data of the syst
-%--------------------------------------------------------
-
+%-------------------------------------------------------------------------------
+% state: dtg_tx, in this state, the node transmit uncomp packet to ieee802154
+%-------------------------------------------------------------------------------
 idle_state({call, From}, {dtg_tx, Ipv6Pckt, FrameControl, MacHeader}, Data) ->
     Frame = <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>,
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
@@ -199,6 +211,10 @@ idle_state({call, From}, {dtg_tx, Ipv6Pckt, FrameControl, MacHeader}, Data) ->
         {error, Error} ->
             {next_state, idle_state, Data, [{reply, From, Error}]}
     end;
+
+%-------------------------------------------------------------------------------
+% state: simple_tx, in this state, the node transmit datagram to ieee802154
+%-------------------------------------------------------------------------------
 idle_state({call, From}, {simple_tx, Frame, FrameControl, MacHeader}, Data) ->
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
     case Transmit of
@@ -207,46 +223,56 @@ idle_state({call, From}, {simple_tx, Frame, FrameControl, MacHeader}, Data) ->
         {error, Error} ->
             {next_state, idle_state, Data, [{reply, From, Error}]}
     end;
-idle_state({call, From},
-           {pckt_tx, Ipv6Pckt},
-           Data = #{node_mac_addr := CurrNodeMacAdd}) ->
-    PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
+
+%-------------------------------------------------------------------------------
+% state: pckt_tx, in this state, the node transmit Ipv6 packet to ieee802154
+%-------------------------------------------------------------------------------
+idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd}) ->
+    % 1st - retrieve useful info from Ip packet
     DestAddress = PcktInfo#ipv6PckInfo.destAddress,
+    SrcAddress = PcktInfo#ipv6PckInfo.sourceAddress,
     Payload = PcktInfo#ipv6PckInfo.payload,
-    PacketLen = byte_size(Ipv6Pckt),
-    DestMacAddress =
-        lowpan:encode_integer(DestAddress), % because return DestAddress is in integer form (TODO)
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt), % 1st - compress the header
+    % PacketLen = byte_size(Ipv6Pckt),
+    % retrieve macAddress from Ipv6 address
+    DestMacAddress = lowpan:get_EUI64_mac_addr(DestAddress),
+    SenderMacAdd = lowpan:get_EUI64_mac_addr(SrcAddress),
+
+    io:format("Final destination: ~p~n",[DestMacAddress]),
+
+    % 2nd - compress the header
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
     CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
-    io:format("Compressed pckt size: ~p bytes~n", [byte_size(CompressedPacket)]),
-    NeedFragmentation =
-        lowpan:trigger_fragmentation(CompressedPacket,
-                                     PacketLen),  % 2nd - check if fragmentation is needed, if so return graments list
-    case NeedFragmentation of
-        {true, Fragments} ->
-            Response = send_fragments(Fragments, CurrNodeMacAdd, DestMacAddress),
+    CompressedPacketLen = byte_size(CompressedPacket),
+
+    io:format("Compressed packet size: ~p bytes~n", [CompressedPacketLen]),
+
+    % 3rd - check if fragmentation is needed, if so return graments list
+    {FragReq, Fragments} = lowpan:trigger_fragmentation(CompressedPacket),
+
+    % 4th - get next hop
+    io:format("Routing check...~n"),
+    {RouteExist, MeshedHdrBin, MH} =
+        lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress),
+    FC = #frame_control{%ack_req = ?ENABLED, 
+                        frame_type = ?FTYPE_DATA,
+                        src_addr_mode = ?EXTENDED,
+                        dest_addr_mode = ?EXTENDED},
+    case FragReq of
+        true ->
+            Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC),
+                
             {next_state, idle_state, Data#{fragments => Fragments}, [{reply, From, Response}]};
         false ->
-            UnFragPckt =
-                lowpan:create_iphc_pckt(CompressedHeader,
-                                        Payload),% lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, PacketLen, Datagram_tag, CompressedHeader, Payload),
-            io:format("UnFragPckt ~p~n", [UnFragPckt]),
-            io:format("Pckt to be transmit len: ~p bytes~n", [byte_size(UnFragPckt)]),
-            FC = #frame_control{frame_type = ?FTYPE_DATA,
-                                src_addr_mode = ?EXTENDED,
-                                dest_addr_mode = ?EXTENDED},
-            MH = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},
-            Transmit = ieee802154:transmission({FC, MH, UnFragPckt}),
-            case Transmit of
-                {ok, _} ->
-                    {next_state, idle_state, Data, [{reply, From, ok}]};
-                {error, Error} ->
-                    {next_state, idle_state, Data, [{reply, From, Error}]}
-            end
+            Response = send_fragment(RouteExist, Fragments, MeshedHdrBin, MH, FC),
+                
+            {next_state, idle_state, Data#{fragments => Fragments}, [{reply, From, Response}]}
     end;
-% Idle call for frame reception
+
+%-------------------------------------------------------------------------------
+% state: frame_rx, in this state, the node activates the rx_on in ieee802154
+%-------------------------------------------------------------------------------
 idle_state(cast, {frame_rx, From}, Data) ->
-    Rx_on = ieee802154:rx_on(), % ensures continuous reception
+    Rx_on = ieee802154:rx_on(),
     case Rx_on of
         ok ->
             io:format("Rx_on activated on node: ~p~n", [node()]),
@@ -255,26 +281,101 @@ idle_state(cast, {frame_rx, From}, Data) ->
         {error, E} ->
             {next_state, idle_state, Data, [{reply, From, {error, E}}]}
     end;
-idle_state(cast, {new_frame, Payload}, Data = #{datagram_map := DatagramMap}) ->
-    UpdatedMap = put_and_reassemble(Payload, DatagramMap, Data),
-    {keep_state, Data#{datagram_map => UpdatedMap}};
-idle_state({call, From}, {frame_discarded, _}, Data) ->
-    {next_state, idle_state, Data, [{reply, From, frame_discarded}]};
-idle_state(cast, {forward, ReceivedFrame}, Data) ->
-    ieee802154:transmission(ReceivedFrame),
-    {next_state, idle_state, Data};
+
+%-------------------------------------------------------------------------------
+% state: new_frame, in this state, the node process the received frame
+%-------------------------------------------------------------------------------
+idle_state(cast, {new_frame, Datagram}, Data = #{datagram_map := DatagramMap, caller := From}) ->
+    <<Type:3, _/bitstring>> = Datagram,
+    case Type of
+        ?IPHC_DHTYPE -> % compressed datagram
+            io:format("Datagram reassembled ~n"),
+            From ! {reassembled_packet, Datagram},
+            {next_state, idle_state, Data};
+        _ -> % fragmented datagram
+            io:format("Storing fragment~n"),
+            UpdatedMap = put_and_reassemble(Datagram, DatagramMap, Data),
+            {keep_state, Data#{datagram_map => UpdatedMap}}
+    end;
+
+%-------------------------------------------------------------------------------
+% state: collected, in this state, the node sends the reassemble packet
+%-------------------------------------------------------------------------------
 idle_state(cast, {collected, Tag, UpdatedMap}, StateData = #{caller := From}) ->
     ReassembledPacket = lowpan:reassemble(Tag, UpdatedMap),
     io:format("Complete for pckt ~p~n", [Tag]),
     From ! {reassembled_packet, ReassembledPacket},
     {next_state, idle_state, StateData};
-idle_state({call, From}, _, Data) ->
-    {next_state, idle_state, Data, [{reply, From, ok}]}.
 
-% --- Utils functions -----------
+%-------------------------------------------------------------------------------
+% state: reassembly_timeout, in this state, the node discards the datagram
+%-------------------------------------------------------------------------------
+idle_state({call, From}, {reassembly_timeout}, Data) ->
+    % io:format("Timeout for datagram ~p~n", []),
+    {next_state, idle_state, Data, [{reply, From, timeout}]}.
 
-put_and_reassemble(Frame, Map, Data) ->
-    DtgInfo = lowpan:datagram_info(Frame),
+%---------- utils functions -----------------------------------------------------------
+
+%-------------------------------------------------------------------------------
+% Transmits each fragment in the FragmentList to ieee802154
+%-------------------------------------------------------------------------------
+% No frag needed => send CompressedPacket
+send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC) ->
+    case RouteExist of
+        true ->
+            Pckt = <<MeshedHdrBin/binary, CompressedPacket/bitstring>>,
+            io:format("Sending ~p bytes~n", [byte_size(Pckt)]),
+            case ieee802154:transmission({FC, MH, Pckt}) of
+                {ok, _} ->
+                    ok;
+                {error, Error} ->
+                    Error
+            end;
+        false ->
+            io:format("Sending ~p bytes~n", [byte_size(CompressedPacket)]),
+            case ieee802154:transmission({FC, MH, CompressedPacket}) of
+                {ok, _} ->
+                    ok;
+                {error, Error} ->
+                    Error
+            end
+    end.
+send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHdrBin, MH, FC) ->
+    case RouteExist of
+        true ->
+            Pckt = <<MeshedHdrBin/binary, FragHeader/binary, FragPayload/bitstring>>,
+            io:format("Sending ~pth fragment: ~p bytes~n", [Counter, byte_size(Pckt)]),
+            case ieee802154:transmission({FC, MH, Pckt}) of
+                {ok, _} ->
+                    send_fragments(RouteExist, Rest, Counter + 1, MeshedHdrBin, MH, FC);
+                {error, Error} ->
+                    io:format("Error during transmission of fragment ~p: ~p~n", [Counter, Error]),
+                    Error
+            end;
+        false ->
+            Pckt = <<FragHeader/binary, FragPayload/bitstring>>,
+            io:format("Sending ~pth fragment: ~p bytes~n", [Counter, byte_size(Pckt)]),
+            case ieee802154:transmission({FC, MH, Pckt}) of
+                {ok, _} ->
+                    send_fragments(RouteExist, Rest, Counter + 1, MeshedHdrBin, MH, FC);
+                {error, Error} ->
+                    io:format("Error during transmission of fragment ~p: ~p~n", [Counter, Error]),
+                    Error
+            end
+    end; 
+send_fragments(_RouteExist, [], _Counter, _MeshedHdrBin, _MH, _FC) ->
+    ok.
+
+
+%---------------------------------------------------------------------------------
+% Add new datagram in the datgram map and check if all of them have been received
+%---------------------------------------------------------------------------------
+
+put_and_reassemble(Datagram, Map, Data) ->
+    % remove meshHeader 
+    %Rest = lowpan:remove_mesh_header(Datagram),
+    
+    DtgInfo = lowpan:datagram_info(Datagram),
 
     Size = DtgInfo#datagramInfo.datagramSize,
     Tag = DtgInfo#datagramInfo.datagramTag,
@@ -285,19 +386,20 @@ put_and_reassemble(Frame, Map, Data) ->
 
     {UpdatedMap, DatagramComplete} =
         case maps:is_key(Tag, Map) of
-            true ->
-                {NewMap, AllReceived} = check_duplicate_frag(Map, Tag, Offset, Size, Payload),
+            true -> % datagram in map
+                {NewMap, AllReceived} =
+                    lowpan:check_duplicate_frag(Map, Tag, Offset, Size, Payload),
                 {NewMap, AllReceived};
-            false ->
+            false -> % datagram not in map
                 CurrSize = byte_size(Payload),
-                Datagram =
+                NewDatagram =
                     #datagram{tag = Tag,
                               size = Size,
                               cmpt = CurrSize,
                               fragments = #{Offset => Payload}},
-                NewMap = maps:put(Tag, Datagram, Map),
+                NewMap = maps:put(Tag, NewDatagram, Map),
                 AllReceived = CurrSize == Size,
-                {NewMap, AllReceived} % return Map and "fullness" of frame
+                {NewMap, AllReceived}
         end,
     io:format("Map: ~p~n", [UpdatedMap]),
 
@@ -305,55 +407,29 @@ put_and_reassemble(Frame, Map, Data) ->
         true ->
             gen_statem:cast(?MODULE, {collected, Tag, UpdatedMap});
         false ->
-            io:format("Uncomplete datagram: ~n"),
-            {keep_state, Data#{datagram_map => UpdatedMap}}
+            io:format("Uncomplete datagram ~n"),
+            io:format("------------------------------------------------------"),
+            {next_state, idle_state, Data#{datagram_map => UpdatedMap}}
+            %{keep_state, Data#{datagram_map => UpdatedMap}}
     end,
     UpdatedMap.
+%---------- Helper --------------------------------------------------------------------
 
-check_duplicate_frag(Map, Tag, Offset, Size, Payload) ->
-    Datagram = maps:get(Tag, Map),
-    FragmentsMap = Datagram#datagram.fragments,
-    KnownFragment = maps:is_key(Offset, FragmentsMap),
+%-------------------------------------------------------------------------------
+% Used to store current node mac address
+%-------------------------------------------------------------------------------
+setup_ets() ->
+    ets:new(nodeData, [named_table, public, {keypos, 1}]).
 
-    case KnownFragment of
-        true ->
-            io:format("Duplicate frame detected~n"),
-            {Map, false};
-        false ->
-            io:format("Not a Duplicated frame~n"),
-            update_datagram_map(Size, Tag, Offset, Payload, Map)
-    end.
+set_nodeData_value(Key, Value) ->
+    ets:insert(nodeData, {Key, Value}).
 
-update_datagram_map(Size, Tag, Offset, Payload, Map) ->
-    OldDatagram = maps:get(Tag, Map),
-    CurrSize = byte_size(Payload),
-    UpdatedCmpt = OldDatagram#datagram.cmpt + CurrSize,
-    FragmentsMap = OldDatagram#datagram.fragments,
-    NewFragments = FragmentsMap#{Offset => Payload},
-    UpdatedDatagram = OldDatagram#datagram{cmpt = UpdatedCmpt, fragments = NewFragments},
-    NewMap = maps:put(Tag, UpdatedDatagram, Map),
-    AllReceived = UpdatedCmpt == Size,
-    io:format("Pckt Size: ~p bytes ~n", [Size]),
-    io:format("Current pckt len: ~p bytes~n", [UpdatedCmpt]),
-    {NewMap, AllReceived}.
-
-send_fragments(Fragments, CurrNodeMacAdd, DestMacAddress) ->
-    send_fragments(Fragments, CurrNodeMacAdd, DestMacAddress, 1).
-
-send_fragments([], _CurrNodeMacAdd, _DestMacAddress, _Counter) ->
-    ok;
-send_fragments([{Header, FragPayload} | Rest], CurrNodeMacAdd, DestMacAddress, Counter) ->
-    Pckt = <<Header/binary, FragPayload/bitstring>>,
-    io:format("~pth packet length: ~p bytes~n", [Counter, byte_size(Pckt)]),
-    FC = #frame_control{frame_type = ?FTYPE_DATA,
-                        src_addr_mode = ?EXTENDED,
-                        dest_addr_mode = ?EXTENDED},
-    MH = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},
-    case ieee802154:transmission({FC, MH, Pckt}) of
-        {ok, _} ->
-            send_fragments(Rest, CurrNodeMacAdd, DestMacAddress, Counter + 1);
-        {error, Error} ->
-            io:format("Error during transmission of fragment ~p: ~p~n", [Counter, Error])
+get_nodeData_value(Key) ->
+    case ets:lookup(nodeData, Key) of
+        [] ->
+            undefined;
+        [{_, Value}] ->
+            Value
     end.
 
 callback_mode() ->

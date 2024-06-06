@@ -3,32 +3,50 @@
 -include("../src/utils.hrl").
 
 -export([all/0, init_per_testcase/1, end_per_testcase/1]).
--export([pkt_encapsulation_test/1, fragmentation_test/1, datagram_info_test/1,
-         reassemble_fragments_list_test/1, reassemble_single_fragments_test/1,
-         reassemble_full_ipv6_pckt_test/1, compress_header_example1_test/1,
-         compress_header_example2_test/1, link_local_addr_pckt_comp/1, multicast_addr_pckt_comp/1,
-         global_context_pckt_comp1/1, udp_nh_pckt_comp/1, tcp_nh_pckt_comp/1, icmp_nh_pckt_comp/1,
-         robot_tx/1, unc_ipv6/1, iphc_pckt/1, msh_pckt/1]).
+-export([
+    pkt_encapsulation_test/1,
+    fragmentation_test/1,
+    datagram_info_test/1,
+    reassemble_fragments_list_test/1,
+    reassemble_single_fragments_test/1,
+    reassemble_full_ipv6_pckt_test/1,
+    compress_header_example1_test/1,
+    compress_header_example2_test/1,
+    link_local_addr_pckt_comp/1,
+    multicast_addr_pckt_comp/1,
+    global_context_pckt_comp1/1,
+    udp_nh_pckt_comp/1,
+    tcp_nh_pckt_comp/1,
+    icmp_nh_pckt_comp/1,
+    robot_tx/1,
+    unc_ipv6/1,
+    iphc_pckt/1,
+    msh_pckt/1, extended_EUI64_from_64mac/1, extended_EUI64_from_48mac/1,
+    extended_EUI64_from_16mac/1
+]).
 
 all() ->
-    [pkt_encapsulation_test,
-     fragmentation_test,
-     datagram_info_test,
-     reassemble_fragments_list_test,
-     reassemble_single_fragments_test,
-     reassemble_full_ipv6_pckt_test,
-     compress_header_example1_test,
-     compress_header_example2_test,
-     link_local_addr_pckt_comp,
-     multicast_addr_pckt_comp,
-     global_context_pckt_comp1,
-     robot_tx,
-     udp_nh_pckt_comp,
-     tcp_nh_pckt_comp,
-     icmp_nh_pckt_comp,
-     unc_ipv6,
-     iphc_pckt,
-     msh_pckt].
+    [
+        pkt_encapsulation_test,
+        fragmentation_test,
+        datagram_info_test,
+        reassemble_fragments_list_test,
+        reassemble_single_fragments_test,
+        reassemble_full_ipv6_pckt_test,
+        compress_header_example1_test,
+        compress_header_example2_test,
+        link_local_addr_pckt_comp,
+        multicast_addr_pckt_comp,
+        global_context_pckt_comp1,
+        robot_tx,
+        udp_nh_pckt_comp,
+        tcp_nh_pckt_comp,
+        icmp_nh_pckt_comp,
+        unc_ipv6,
+        iphc_pckt,
+        msh_pckt, extended_EUI64_from_64mac,extended_EUI64_from_48mac,
+        extended_EUI64_from_16mac
+    ].
 
 init_per_testcase(Config) ->
     % Any setup required before suite runs
@@ -45,14 +63,16 @@ end_per_testcase(_Config) ->
 pkt_encapsulation_test(_Config) ->
     Payload = <<"This is an Ipv6 pckt">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 17,
-                     hop_limit = 64,
-                     source_address = <<1>>,
-                     destination_address = <<2>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            next_header = 17,
+            hop_limit = 64,
+            source_address = <<1>>,
+            destination_address = <<2>>
+        },
     IPv6Packet = ipv6:build_ipv6_packet(IPv6Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
     ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
@@ -83,11 +103,13 @@ msh_pckt(_Config) ->
     %Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     %{CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
     MeshHeader =
-        #mesh_header{v_bit = 0,
-                     f_bit = 0,
-                     hops_left = 14,
-                     originator_address = ?Node1MacAddress,
-                     final_destination_address = ?Node2MacAddress},
+        #mesh_header{
+            v_bit = 0,
+            f_bit = 0,
+            hops_left = 14,
+            originator_address = ?Node1MacAddress,
+            final_destination_address = ?Node2MacAddress
+        },
 
     BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
     ExpectedHeader =
@@ -105,14 +127,16 @@ msh_pckt(_Config) ->
 link_local_addr_pckt_comp(_Config) ->
     Payload = <<"Testing basic IPHC compression with link-local address">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 0,
-                     hop_limit = 64,
-                     source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-                     destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            next_header = 0,
+            hop_limit = 64,
+            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
+            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+        },
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
     Tf = 2#11,
@@ -125,26 +149,18 @@ link_local_addr_pckt_comp(_Config) ->
     Dac = 0,
     Dam = 2#01,
     ExpectedCarriedInline =
-        #{"SAM" => 14627373598910709761,
-          "DAM" => 14627373598910709762,
-          "NextHeader" => 0},
+        #{
+            "SAM" => 14627373598910709761,
+            "DAM" => 14627373598910709762,
+            "NextHeader" => 0
+        },
 
     InlineData =
-        <<0:8,
-          14627373598910709761:64,
-          14627373598910709762:64>>,%lowpan:tuple_list_to_binary(ExpectedCarriedInlineList),
+        <<0:8, 14627373598910709761:64,
+            %lowpan:tuple_list_to_binary(ExpectedCarriedInlineList),
+            14627373598910709762:64>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -157,14 +173,17 @@ link_local_addr_pckt_comp(_Config) ->
 multicast_addr_pckt_comp(_Config) ->
     Payload = <<"Testing basic IPHC compression with multicast address">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 2,
-                     payload_length = byte_size(Payload),
-                     next_header = 0, %UDP
-                     hop_limit = 1,
-                     source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-                     destination_address = <<16#FF02:16, 0:48, 16#CAFEDECA00000002:64>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 2,
+            payload_length = byte_size(Payload),
+            %UDP
+            next_header = 0,
+            hop_limit = 1,
+            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
+            destination_address = <<16#FF02:16, 0:48, 16#CAFEDECA00000002:64>>
+        },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
@@ -178,33 +197,22 @@ multicast_addr_pckt_comp(_Config) ->
     Dac = 0,
     Dam = 2#00,
     ExpectedCarriedInline =
-        #{"SAM" => 14627373598910709761,
-          "DAM" => 338963523518870617260355234963057016834,
-          "NextHeader" => 0,
-          "ECN" => 0,
-          "FlowLabel" => 2},
+        #{
+            "SAM" => 14627373598910709761,
+            "DAM" => 338963523518870617260355234963057016834,
+            "NextHeader" => 0,
+            "ECN" => 0,
+            "FlowLabel" => 2
+        },
 
     Dest = IPv6Header#ipv6_header.destination_address,
     InlineData =
-        <<0:2,
-          0:2,
-          2:20,
-          0:8,
-          16#CAFEDECA00000001:64,
-          Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
+        <<0:2, 0:2, 2:20, 0:8, 16#CAFEDECA00000001:64,
+            %list_to_binary(ExpectedCarriedInlineList),
+            Dest/binary>>,
 
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -217,14 +225,17 @@ multicast_addr_pckt_comp(_Config) ->
 global_context_pckt_comp1(_Config) ->
     Payload = <<"Testing basic IPHC compression with multicast address">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 3,
-                     payload_length = byte_size(Payload),
-                     next_header = 0, %UDP
-                     hop_limit = 255,
-                     source_address = <<16#2001:16, 0:48, 16#CAFEDECA00000001:64>>,
-                     destination_address = <<16#2001:16, 0:48, 16#CAFEDECA00000002:64>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 3,
+            payload_length = byte_size(Payload),
+            %UDP
+            next_header = 0,
+            hop_limit = 255,
+            source_address = <<16#2001:16, 0:48, 16#CAFEDECA00000001:64>>,
+            destination_address = <<16#2001:16, 0:48, 16#CAFEDECA00000002:64>>
+        },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
@@ -238,34 +249,23 @@ global_context_pckt_comp1(_Config) ->
     Dac = 1,
     Dam = 2#00,
     ExpectedCarriedInline =
-        #{"SAM" => 42540488161975842775177730024210956289,
-          "NextHeader" => 0,
-          "ECN" => 0,
-          "FlowLabel" => 3,
-          "DAM" => 42540488161975842775177730024210956290},
+        #{
+            "SAM" => 42540488161975842775177730024210956289,
+            "NextHeader" => 0,
+            "ECN" => 0,
+            "FlowLabel" => 3,
+            "DAM" => 42540488161975842775177730024210956290
+        },
     io:format("ExpectedCarriedInline: ~p~n", [ExpectedCarriedInline]),
 
     Dest = IPv6Header#ipv6_header.destination_address,
     Src = IPv6Header#ipv6_header.source_address,
     InlineData =
-        <<0:2,
-          0:2,
-          3:20,
-          0:8,
-          Src/binary,
-          Dest/binary>>,%list_to_binary(ExpectedCarriedInlineList),
+        <<0:2, 0:2, 3:20, 0:8, Src/binary,
+            %list_to_binary(ExpectedCarriedInlineList),
+            Dest/binary>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -285,16 +285,7 @@ udp_nh_pckt_comp(_Config) ->
     UdpPckt = <<1025:16, 61617:16, 25:16, 16#f88c:16>>,
 
     Ipv6Pckt =
-        <<6:4,
-          0:8,
-          0:20,
-          PayloadLength:16,
-          17:8,
-          64:8,
-          Source_address/binary,
-          Destination_address/binary,
-          UdpPckt/binary,
-          Payload/binary>>,
+        <<6:4, 0:8, 0:20, PayloadLength:16, 17:8, 64:8, Source_address/binary, Destination_address/binary, UdpPckt/binary, Payload/binary>>,
 
     Tf = 2#11,
     Nh = 1,
@@ -314,21 +305,7 @@ udp_nh_pckt_comp(_Config) ->
 
     io:format("UdpInline ~p~n", [UdpInline]),
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary,
-          ?UDP_DHTYPE:5,
-          C:1,
-          P:2,
-          UdpInline/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary, ?UDP_DHTYPE:5, C:1, P:2, UdpInline/binary>>,
 
     Pckt = <<Ipv6Pckt/binary, UdpPckt/binary>>,
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Pckt),
@@ -342,14 +319,17 @@ udp_nh_pckt_comp(_Config) ->
 tcp_nh_pckt_comp(_Config) ->
     Payload = <<"Testing basic IPHC compression with link-local address">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 6, % TCP
-                     hop_limit = 64,
-                     source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-                     destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            % TCP
+            next_header = 6,
+            hop_limit = 64,
+            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
+            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+        },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
@@ -363,23 +343,15 @@ tcp_nh_pckt_comp(_Config) ->
     Dac = 0,
     Dam = 2#01,
     ExpectedCarriedInline =
-        #{"SAM" => 14627373598910709761,
-          "DAM" => 14627373598910709762,
-          "NextHeader" => 6},
+        #{
+            "SAM" => 14627373598910709761,
+            "DAM" => 14627373598910709762,
+            "NextHeader" => 6
+        },
 
     InlineData = <<6:8, 14627373598910709761:64, 14627373598910709762:64>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
 
@@ -392,14 +364,17 @@ tcp_nh_pckt_comp(_Config) ->
 icmp_nh_pckt_comp(_Config) ->
     Payload = <<"Testing basic IPHC compression with link-local address">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 58, %ICMPv6
-                     hop_limit = 255,
-                     source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-                     destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            %ICMPv6
+            next_header = 58,
+            hop_limit = 255,
+            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
+            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+        },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
@@ -413,23 +388,15 @@ icmp_nh_pckt_comp(_Config) ->
     Dac = 0,
     Dam = 2#01,
     ExpectedCarriedInline =
-        #{"SAM" => 14627373598910709761,
-          "DAM" => 14627373598910709762,
-          "NextHeader" => 58},
+        #{
+            "SAM" => 14627373598910709761,
+            "DAM" => 14627373598910709762,
+            "NextHeader" => 58
+        },
 
     InlineData = <<58:8, 14627373598910709761:64, 14627373598910709762:64>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
 
@@ -447,15 +414,7 @@ compress_header_example1_test(_Config) ->
     SrcAddress = <<16#FE80:16, 0:48, 16#020164FFFE2FFC0A:64>>,
     DstAddress = <<16#FF02:16, 0:48, 16#0000000000000001:64>>,
     Ipv6Pckt =
-        <<6:4,
-          224:8,
-          0:20,
-          PayloadLength:16,
-          58:8,
-          255:8,
-          SrcAddress/binary,
-          DstAddress/binary,
-          Payload/bitstring>>,
+        <<6:4, 224:8, 0:20, PayloadLength:16, 58:8, 255:8, SrcAddress/binary, DstAddress/binary, Payload/bitstring>>,
 
     Tf = 2#10,
     Nh = 0,
@@ -467,22 +426,15 @@ compress_header_example1_test(_Config) ->
     Dac = 0,
     Dam = 2#11,
     ExpectedCarriedInline =
-        #{"DAM" => 1,
-          "NextHeader" => 58,
-          "TrafficClass" => 224},
-    InlineData = <<0:2, 56:6, 58:8, 1:8>>,%lowpan:map_to_binary(ExpectedCarriedInline),
+        #{
+            "DAM" => 1,
+            "NextHeader" => 58,
+            "TrafficClass" => 224
+        },
+    %lowpan:map_to_binary(ExpectedCarriedInline),
+    InlineData = <<0:2, 56:6, 58:8, 1:8>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -499,15 +451,7 @@ compress_header_example2_test(_Config) ->
     SrcAddress = <<16#2001066073013728:64, 16#0223DFFFFEA9F7AC:64>>,
     DstAddress = <<16#2001A45040070803:64, 16#0000000000001004:64>>,
     Ipv6Pckt =
-        <<6:4,
-          0:8,
-          0:20,
-          PayloadLength:16,
-          6:8,
-          64:8,
-          SrcAddress/binary,
-          DstAddress/binary,
-          Payload/binary>>,
+        <<6:4, 0:8, 0:20, PayloadLength:16, 6:8, 64:8, SrcAddress/binary, DstAddress/binary, Payload/binary>>,
 
     Tf = 2#11,
     Nh = 0,
@@ -519,22 +463,14 @@ compress_header_example2_test(_Config) ->
     Dac = 1,
     Dam = 2#00,
     ExpectedCarriedInline =
-        #{"NextHeader" => 6,
-          "SAM" => 42540617497929311563404140503263475628,
-          "DAM" => 42543820835219383719222373238926479364},
+        #{
+            "NextHeader" => 6,
+            "SAM" => 42540617497929311563404140503263475628,
+            "DAM" => 42543820835219383719222373238926479364
+        },
     InlineData = <<6:8, SrcAddress/bitstring, DstAddress/bitstring>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nActual ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -556,15 +492,7 @@ robot_tx(_Config) ->
     PayloadLength = byte_size(Payload),
 
     Ipv6Pckt =
-        <<6:4,
-          224:8,
-          2:20,
-          PayloadLength:16,
-          12:8,
-          255:8,
-          Node1Address/binary,
-          Node2Address/binary,
-          Payload/bitstring>>,
+        <<6:4, 224:8, 2:20, PayloadLength:16, 12:8, 255:8, Node1Address/binary, Node2Address/binary, Payload/bitstring>>,
 
     Tf = 2#00,
     Nh = 0,
@@ -576,31 +504,19 @@ robot_tx(_Config) ->
     Dac = 0,
     Dam = 2#01,
     ExpectedCarriedInline =
-        #{"SAM" => 14627373598910709761,
-          "DAM" => 14627373598910709762,
-          "NextHeader" => 12,
-          "TrafficClass" => 224,
-          "FlowLabel" => 2},
+        #{
+            "SAM" => 14627373598910709761,
+            "DAM" => 14627373598910709762,
+            "NextHeader" => 12,
+            "TrafficClass" => 224,
+            "FlowLabel" => 2
+        },
     InlineData =
-        <<0:2,
-          56:6,
-          0:4,
-          2:20,
-          12:8,
-          14627373598910709761:64,
-          14627373598910709762:64>>,%lowpan:map_to_binary(ExpectedCarriedInline),
+        <<0:2, 56:6, 0:4, 2:20, 12:8, 14627373598910709761:64,
+            %lowpan:map_to_binary(ExpectedCarriedInline),
+            14627373598910709762:64>>,
     ExpectedHeader =
-        <<?IPHC_DHTYPE:3,
-          Tf:2,
-          Nh:1,
-          Hlim:2,
-          Cid:1,
-          Sac:1,
-          Sam:2,
-          M:1,
-          Dac:1,
-          Dam:2,
-          InlineData/binary>>,
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
@@ -614,11 +530,13 @@ robot_tx(_Config) ->
     Datagram_tag = rand:uniform(65536),
     CompPcktLen = byte_size(CompressedPacket),
     UnFragPckt =
-        lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE,
-                                    CompPcktLen,
-                                    Datagram_tag,
-                                    CompressedHeader,
-                                    Payload),
+        lowpan:build_firstFrag_pckt(
+            ?FRAG1_DHTYPE,
+            CompPcktLen,
+            Datagram_tag,
+            CompressedHeader,
+            Payload
+        ),
     io:format("Pckt len: ~p bytes~n", [byte_size(UnFragPckt)]),
 
     io:format("Pckt: ~p~n", [UnFragPckt]),
@@ -638,21 +556,23 @@ robot_tx(_Config) ->
     ok.
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           6LoWPAN IPv6 Packet Fragmentation
+%                                                      6LoWPAN IPv6 Packet Fragmentation
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
 fragmentation_test(_Config) ->
     % fragmentation test based on the computation of the size of all fragment payloads
     Payload = <<"This is an Ipv6 pckt">>,
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 17,
-                     hop_limit = 64,
-                     source_address = <<1>>,
-                     destination_address = <<2>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            next_header = 17,
+            hop_limit = 64,
+            source_address = <<1>>,
+            destination_address = <<2>>
+        },
     IPv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
     Fragments = lowpan:fragment_ipv6_packet(IPv6Pckt, byte_size(Payload)),
     ReassembledSize =
@@ -689,15 +609,19 @@ reassemble_fragments_list_test(_Config) ->
     Data = <<"Hello World!">>,
     PayloadLen = byte_size(Data),
     FragHeader1 =
-        #frag_header{frag_type = ?FRAG1_DHTYPE,
-                     datagram_size = PayloadLen,
-                     datagram_tag = 25,
-                     datagram_offset = 0},
+        #frag_header{
+            frag_type = ?FRAG1_DHTYPE,
+            datagram_size = PayloadLen,
+            datagram_tag = 25,
+            datagram_offset = 0
+        },
     FragHeader2 =
-        #frag_header{frag_type = ?FRAGN_DHTYPE,
-                     datagram_size = PayloadLen,
-                     datagram_tag = 25,
-                     datagram_offset = 1},
+        #frag_header{
+            frag_type = ?FRAGN_DHTYPE,
+            datagram_size = PayloadLen,
+            datagram_tag = 25,
+            datagram_offset = 1
+        },
     Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
     Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
     Fragments = [Frag1, Frag2],
@@ -709,15 +633,19 @@ reassemble_single_fragments_test(_Config) ->
     Data = <<"Hello World!">>,
     PayloadLen = byte_size(Data),
     FragHeader1 =
-        #frag_header{frag_type = ?FRAG1_DHTYPE,
-                     datagram_size = PayloadLen,
-                     datagram_tag = 25,
-                     datagram_offset = 0},
+        #frag_header{
+            frag_type = ?FRAG1_DHTYPE,
+            datagram_size = PayloadLen,
+            datagram_tag = 25,
+            datagram_offset = 0
+        },
     FragHeader2 =
-        #frag_header{frag_type = ?FRAGN_DHTYPE,
-                     datagram_size = PayloadLen,
-                     datagram_tag = 25,
-                     datagram_offset = 1},
+        #frag_header{
+            frag_type = ?FRAGN_DHTYPE,
+            datagram_size = PayloadLen,
+            datagram_tag = 25,
+            datagram_offset = 1
+        },
     Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
     Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
     DatagramMap = maps:new(),
@@ -730,24 +658,53 @@ reassemble_single_fragments_test(_Config) ->
 reassemble_full_ipv6_pckt_test(_Config) ->
     Payload = lowpan:generate_chunks(),
     IPv6Header =
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = byte_size(Payload),
-                     next_header = 17,
-                     hop_limit = 64,
-                     source_address = <<1>>,
-                     destination_address = <<2>>},
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            next_header = 17,
+            hop_limit = 64,
+            source_address = <<1>>,
+            destination_address = <<2>>
+        },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
     io:format("Original pckt size ~p bytes~n", [byte_size(Ipv6Pckt)]),
     FragmentList = lowpan:fragment_ipv6_packet(Ipv6Pckt, byte_size(Ipv6Pckt)),
     Fragments =
-        lists:map(fun({FragHeader, FragPayload}) -> <<FragHeader/binary, FragPayload/bitstring>>
-                  end,
-                  FragmentList),
+        lists:map(
+            fun({FragHeader, FragPayload}) -> <<FragHeader/binary, FragPayload/bitstring>> end,
+            FragmentList
+        ),
     Reassembled = lowpan:reassemble_datagrams(Fragments),
     io:format("Reassembled:  ~p~nIpv6Pckt:  ~p~n", [Reassembled, Ipv6Pckt]),
     Ipv6Pckt = Reassembled,
 
     ok.
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+%                                                              Additionnal tests
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+
+extended_EUI64_from_48mac(_Config)->
+    MacAddr = <<16#9865FD361453:48>>, 
+    Expected = <<16#9A65FDFFFE361453:64>>,
+    Result = lowpan:get_EUI64_from_48bit_mac(MacAddr), 
+    io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
+    Result =:= Expected.  
+
+extended_EUI64_from_64mac(_Config)->
+    MacAddr = <<16#00124B0006386C1A:64>>, 
+    Expected = <<16#02124B0006386C1A:64>>,
+    Result = lowpan:get_EUI64_from_extended_mac(MacAddr), 
+    io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
+    Result =:= Expected. 
+
+extended_EUI64_from_16mac(_Config)->
+    MacAddr = <<16#0001:16>>, 
+    Expected = <<16#FFFF:16, 0:16, 16#0001:16>>,
+    Result = lowpan:get_EUI64_from_short_mac(MacAddr), 
+    io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
+    Result =:= Expected. 

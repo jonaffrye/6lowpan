@@ -9,19 +9,21 @@
 -define(PayloadLength, byte_size(?Payload)).
 -define(Node1Address, lowpan:get_default_LL_add(?Node1MacAddress)).
 -define(Node2Address, lowpan:get_default_LL_add(?Node2MacAddress)).
--define(IPv6Header,
-        #ipv6_header{version = 6,
-                     traffic_class = 0,
-                     flow_label = 0,
-                     payload_length = ?PayloadLength,
-                     next_header = 12,
-                     hop_limit = 64,
-                     source_address = ?Node1Address,
-                     destination_address = ?Node2Address}).
--define(FrameControl,
-        #frame_control{frame_type = ?FTYPE_DATA,
-                       src_addr_mode = ?EXTENDED,
-                       dest_addr_mode = ?EXTENDED}).
+-define(Node3Address, lowpan:get_default_LL_add(?Node3MacAddress)).
+-define(IPv6Header, #ipv6_header{
+    version = 6,
+    traffic_class = 0,
+    flow_label = 0,
+    payload_length = ?PayloadLength,
+    next_header = 12,
+    hop_limit = 64,
+    source_address = ?Node1Address,
+    destination_address = ?Node2Address
+}).
+-define(FrameControl, #frame_control{
+    frame_type = ?FTYPE_DATA,
+    src_addr_mode = ?EXTENDED,
+    dest_addr_mode = ?EXTENDED
+}).
 -define(Ipv6Pckt, ipv6:build_ipv6_packet(?IPv6Header, ?Payload)).
--define(MacHeader,
-        #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).
+-define(MacHeader, #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).

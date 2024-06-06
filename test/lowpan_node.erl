@@ -3,7 +3,7 @@
 -module(lowpan_node).
 
 -export([boot_network_node/0, boot_network_node/1, stop_network_node/2]).
--export([boot_lowpan_node/3, boot_lowpan_node/4, stop_lowpan_node/2]).
+-export([boot_lowpan_node/4, boot_lowpan_node/5, stop_lowpan_node/2]).
 -export([boot_node/1]).
 -export([get_project_cwd/0]).
 
@@ -24,7 +24,10 @@ get_project_cwd() ->
     filename:dirname(
         filename:dirname(
             filename:dirname(
-                filename:dirname(Path)))).
+                filename:dirname(Path)
+            )
+        )
+    ).
 
 %% @private
 %% @doc Boots a remote node using the code of the project.
@@ -78,36 +81,44 @@ stop_network_node(Network, NetPid) ->
 %% The network node needs to be started before calling this function.
 %% The rx callback function used is a placeholder.
 %% @equiv boot_lowpan_node(Name, Network, NodeMacAddress, fun() -> ok end).
--spec boot_lowpan_node(atom(), node(), mac_address()) -> {pid(), node()}.
-boot_lowpan_node(Name, Network, NodeMacAddress) ->
-    boot_lowpan_node(Name, Network, NodeMacAddress, fun() -> ok end).
+
+boot_lowpan_node(Name, Network, NodeMacAddress, RoutingTable) ->
+    boot_lowpan_node(Name, Network, NodeMacAddress, fun() -> ok end, RoutingTable).
 
 %% @doc Boots a node and initializes a 6LoWPAN stack inside.
 %% The stack will use the mock_phy_network to simulate communications over UWB.
 %% The network node needs to be started before calling this function.
 %% The Callback function is used at the reception of a frame when the rx loop is used.
 -spec boot_lowpan_node(atom(), node(), mac_address(), fun()) -> {pid(), node()}.
-boot_lowpan_node(Name, Network, NodeMacAddress, Callback) ->
+boot_lowpan_node(Name, Network, NodeMacAddress, Callback, RoutingTable) ->
     {Pid, Node} = boot_node(Name),
     init_network_layers(Node, Network, mac_extended_address, NodeMacAddress, Callback),
-    erpc:call(Node, lowpan_layer, start, [#{node_mac_addr => NodeMacAddress}]),
+    erpc:call(Node, lowpan_layer, start, [#{node_mac_addr => NodeMacAddress, routing_table => RoutingTable}]),
     {Pid, Node}.
 
 % @private
 %% @doc Initializes network layers for a node.
 -spec init_network_layers(node(), node(), mac_address_type(), mac_address(), fun()) -> ok.
 init_network_layers(Node, Network, MacAddressType, NodeMacAddress, Callback) ->
-    erpc:call(Node,
-              mock_phy_network,
-              start,
-              [spi2, #{network => Network}]), % Starting the the mock driver/physical layer
-    erpc:call(Node,
-              ieee802154,
-              start,
-              [#ieee_parameters{phy_layer = mock_phy_network,
-                                duty_cycle = duty_cycle_non_beacon,
-                                input_callback = Callback}]),
-
+    erpc:call(
+        Node,
+        mock_phy_network,
+        start,
+        % Starting the the mock driver/physical layer
+        [spi2, #{network => Network}]
+    ),
+    erpc:call(
+        Node,
+        ieee802154,
+        start,
+        [
+            #ieee_parameters{
+                phy_layer = mock_phy_network,
+                duty_cycle = duty_cycle_non_beacon,
+                input_callback = Callback
+            }
+        ]
+    ),
     erpc:call(Node, mock_top_layer, start, []),
     erpc:call(Node, frame_handler, start, [NodeMacAddress]),
     erpc:call(Node, ieee802154, set_pib_attribute, [MacAddressType, NodeMacAddress]).
