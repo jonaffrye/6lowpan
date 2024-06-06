@@ -13,45 +13,47 @@
 
 %--- Callbacks -----------------------------------------------------------------
 
--callback init(PhyMod::module()) -> State::term().
--callback tx(State::term(),
-             Frame::bitstring(),
-             Pib  :: pib_state(),
-             TxOptions::#tx_opts{}) -> {ok, Newstate::term()}
-                                       | {error,
-                                          Newstate::term(),
-                                          Error::tx_error()}.
--callback terminate(State::term(), Reason::atom()) -> ok.
+-callback init(PhyMod :: module()) -> State :: term().
+-callback tx(
+    State :: term(),
+    Frame :: bitstring(),
+    Pib :: pib_state(),
+    TxOptions :: #tx_opts{}
+) ->
+    {ok, Newstate :: term()} | {error, Newstate :: term(), Error :: tx_error()}.
+-callback terminate(State :: term(), Reason :: atom()) -> ok.
 
 %--- Types ---------------------------------------------------------------------
 
 -export_type([state/0]).
 
--opaque state() :: {Module::module(), Sub::term()}.
+-opaque state() :: {Module :: module(), Sub :: term()}.
 
 %--- API -----------------------------------------------------------------------
 -spec start(Module, PhyMod) -> State when
-      PhyMod :: module(),
-      Module :: module(),
-      State  :: state().
+    PhyMod :: module(),
+    Module :: module(),
+    State :: state().
 start(Module, PhyMod) ->
     {Module, Module:init(PhyMod)}.
 
 -spec transmit(State, Frame, Pib, TxOptions) -> Result when
-      State     :: state(),
-      Frame     :: bitstring(),
-      Pib       :: pib_state(),
-      TxOptions :: tx_opts(),
-      Result    :: {ok, State} | {error, State, Error},
-      Error     :: tx_error().
+    State :: state(),
+    Frame :: bitstring(),
+    Pib :: pib_state(),
+    TxOptions :: tx_opts(),
+    Result :: {ok, State} | {error, State, Error},
+    Error :: tx_error().
 transmit({Module, Sub}, Frame, Pib, TxOptions) ->
     case Module:tx(Sub, Frame, Pib, TxOptions) of
-        {ok, Sub2} -> {ok, {Module, Sub2}};
-        {error, Sub2, Error} -> {error, {Module, Sub2}, Error}
+        {ok, Sub2} ->
+            {ok, {Module, Sub2}};
+        {error, Sub2, Error} ->
+            {error, {Module, Sub2}, Error}
     end.
 
 -spec stop(State, Reason) -> ok when
-      State  :: state(),
-      Reason :: atom().
+    State :: state(),
+    Reason :: atom().
 stop({Module, Sub}, Reason) ->
     Module:terminate(Sub, Reason).

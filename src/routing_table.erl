@@ -1,18 +1,27 @@
 -module(routing_table).
+
 -behaviour(gen_server).
 
 %%% API
--export([start/0, add_route/2, delete_route/1, get_route/1, update_route/2, reset_routing_table/0]).
+-export([
+    start/1,  % Changed from start/1 to start/0
+    stop/0,
+    add_route/2,
+    delete_route/1,
+    get_route/1,
+    update_route/2,
+    reset_routing_table/0
+]).
 
-%% gen_server callbacks
--export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3, stop/0]).
+%%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3]).
 
 %%% API functions
-start() ->
-    gen_server:start({local, ?MODULE}, ?MODULE, [], []).
+start(RoutingTable) ->
+    gen_server:start({local, ?MODULE}, ?MODULE, RoutingTable, []).
 
-
-stop() -> gen_server:stop(?MODULE).
+stop() ->
+    gen_server:stop(?MODULE).
 
 add_route(DestAddr, NextHAddr) ->
     gen_server:call(?MODULE, {add_route, DestAddr, NextHAddr}).
@@ -30,24 +39,24 @@ reset_routing_table() ->
     gen_server:call(?MODULE, reset).
 
 %%% gen_server callbacks
-init([]) ->
-    {ok, #{}}.
+init(RoutingTable) ->
+    {ok, RoutingTable}.
 
-handle_call({add_route, DestAddr, NextHAddr}, _From, MapState) ->
-    NewMapState = maps:put(DestAddr, NextHAddr, MapState),
-    {reply, ok, NewMapState};
+handle_call({add_route, DestAddr, NextHAddr}, _From, RoutingTable) ->
+    NewTable = maps:put(DestAddr, NextHAddr, RoutingTable),
+    {reply, ok, NewTable};
 
-handle_call({delete_route, DestAddr}, _From, MapState) ->
-    NewMapState = maps:remove(DestAddr, MapState),
-    {reply, ok, NewMapState};
+handle_call({delete_route, DestAddr}, _From, RoutingTable) ->
+    NewTable = maps:remove(DestAddr, RoutingTable),
+    {reply, ok, NewTable};
 
-handle_call({get_route, DestAddr}, _From, MapState) ->
-    NextHAddr = maps:get(DestAddr, MapState, undefined),
-    {reply, NextHAddr, MapState};
+handle_call({get_route, DestAddr}, _From, RoutingTable) ->
+    NextHAddr = maps:get(DestAddr, RoutingTable, undefined),
+    {reply, NextHAddr, RoutingTable};
 
-handle_call({update_route, DestAddr, NextHAddr}, _From, MapState) ->
-    NewMapState = maps:put(DestAddr, NextHAddr, MapState),
-    {reply, ok, NewMapState};
+handle_call({update_route, DestAddr, NextHAddr}, _From, RoutingTable) ->
+    NewTable = maps:put(DestAddr, NextHAddr, RoutingTable),
+    {reply, ok, NewTable};
 
 handle_call(reset, _From, _MapState) ->
     {reply, ok, #{}}.

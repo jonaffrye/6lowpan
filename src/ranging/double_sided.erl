@@ -10,14 +10,12 @@
 -export([start_link/0]).
 -export([initiator/1]).
 -export([rx_callback/4]).
-
 %%% gen_statem callbacks
 -export([init/1]).
 -export([callback_mode/0]).
 -export([state_name/3]).
 -export([handle_event/4]).
 -export([terminate/3]).
-
 % gen_statem state functions
 -export([idle/3]).
 -export([middle_init/3]).
@@ -40,12 +38,13 @@ initiator(N) ->
     Ref = make_ref(),
     {Frame, RangingInfos} = send_poll(),
     tx(Frame, RangingInfos, {self(), Ref}),
-    receive 
-        {Ref, continue} -> ok
-    after 
-        500 -> flush_current()
+    receive
+        {Ref, continue} ->
+            ok
+    after 500 ->
+        flush_current()
     end,
-    initiator(N-1).
+    initiator(N - 1).
 
 %--- API: internal
 tx(Frame, RangingInfos, From) ->
@@ -81,42 +80,53 @@ init(_) ->
     {ok, idle, #{measures => [], fails => 0}}.
 
 callback_mode() ->
-  [state_functions].
+    [state_functions].
 
 idle({call, From}, {measures}, Data) ->
     #{measures := Measures} = Data,
     {keep_state, Data#{measures := []}, {reply, From, Measures}};
 idle(cast, {tx, From, _, RangingInfos}, Data) ->
-    #ranging_informations{ranging_counter_start = PollTx, 
-                          ranging_counter_stop = RespRx} = RangingInfos,
-    {next_state, middle_init, Data#{poll_tx => PollTx, resp_rx => RespRx, from => From}};
+    #ranging_informations{ranging_counter_start = PollTx, ranging_counter_stop = RespRx} =
+        RangingInfos,
+    {next_state,
+     middle_init,
+     Data#{poll_tx => PollTx,
+           resp_rx => RespRx,
+           from => From}};
 idle(cast, {rx, Frame, RangingInfos}, Data) ->
-    #ranging_informations{ranging_counter_start = PollRx,
-                          ranging_counter_stop = RespTx} = RangingInfos,
+    #ranging_informations{ranging_counter_start = PollRx, ranging_counter_stop = RespTx} =
+        RangingInfos,
 
     {_, SymRangingInfos} = send_sym(Frame),
-    #ranging_informations{ranging_counter_start = SymTx,
-                          ranging_counter_stop = FinalRx} = SymRangingInfos,
+    #ranging_informations{ranging_counter_start = SymTx, ranging_counter_stop = FinalRx} =
+        SymRangingInfos,
 
-    send_report(Frame, #{poll_rx => PollRx,
-                         resp_tx => RespTx,
-                         sym_tx => SymTx,
-                         final_rx => FinalRx}),
+    send_report(Frame,
+                #{poll_rx => PollRx,
+                  resp_tx => RespTx,
+                  sym_tx => SymTx,
+                  final_rx => FinalRx}),
 
     {next_state, idle, Data}.
 
 middle_init(cast, {rx, _, RangingInfos}, Data) ->
-    #ranging_informations{ranging_counter_start = SymRx,
-                          ranging_counter_stop = FinalTx} = RangingInfos,
+    #ranging_informations{ranging_counter_start = SymRx, ranging_counter_stop = FinalTx} =
+        RangingInfos,
     {next_state, wait_report, Data#{sym_rx => SymRx, final_tx => FinalTx}}.
 
 wait_report(cast, {flush}, Data) ->
     #{measures := Measures, fails := Fails} = Data,
-    {next_state, idle, #{measures => Measures, fails => Fails+1}};
+    {next_state, idle, #{measures => Measures, fails => Fails + 1}};
 wait_report(cast, {rx, <<"RANGING SYM">>, _}, Data) ->
     {keep_state, Data};
 wait_report(cast, {rx, Frame, _}, Data) ->
-    #{poll_tx := PollTx, resp_rx := RespRx, sym_rx := SymRx, final_tx := FinalTx, measures := Measures, from := From} = Data,
+    #{poll_tx := PollTx,
+      resp_rx := RespRx,
+      sym_rx := SymRx,
+      final_tx := FinalTx,
+      measures := Measures,
+      from := From} =
+        Data,
     {_, _, Payload} = Frame,
     <<"REPORT", PollRx:40, RespTx:40, SymTx:40, FinalRx:40>> = Payload,
     InitiatorTS = {PollTx, RespRx, SymRx, FinalTx},
@@ -141,13 +151,15 @@ send_sym(RxFrame) ->
     #mac_header{src_pan = DestPAN,
                 src_addr = DestAddr,
                 dest_pan = SrcPAN,
-                dest_addr = SrcAddr} = RxMH,
+                dest_addr = SrcAddr} =
+        RxMH,
     Seqnum = rand:uniform(255),
-    NewMH = #mac_header{seqnum = Seqnum,
-                        src_pan = SrcPAN,
-                        src_addr = SrcAddr,
-                        dest_pan = DestPAN,
-                        dest_addr = DestAddr},
+    NewMH =
+        #mac_header{seqnum = Seqnum,
+                    src_pan = SrcPAN,
+                    src_addr = SrcAddr,
+                    dest_pan = DestPAN,
+                    dest_addr = DestAddr},
     Payload = <<"RANGING SYM">>,
     Frame = {FC, NewMH, Payload},
     ieee802154:transmission(Frame, ?ALL_RANGING).
@@ -158,17 +170,20 @@ send_report(RxFrame, StoredTS) ->
     #mac_header{src_pan = DestPAN,
                 src_addr = DestAddr,
                 dest_pan = SrcPAN,
-                dest_addr = SrcAddr} = RxMH,
+                dest_addr = SrcAddr} =
+        RxMH,
     Seqnum = rand:uniform(255),
-    NewMH = #mac_header{seqnum = Seqnum,
-                        src_pan = SrcPAN,
-                        src_addr = SrcAddr,
-                        dest_pan = DestPAN,
-                        dest_addr = DestAddr},
+    NewMH =
+        #mac_header{seqnum = Seqnum,
+                    src_pan = SrcPAN,
+                    src_addr = SrcAddr,
+                    dest_pan = DestPAN,
+                    dest_addr = DestAddr},
     #{poll_rx := PollRx,
       resp_tx := RespTx,
       sym_tx := SymTx,
-      final_rx := FinalRx} = StoredTS,
+      final_rx := FinalRx} =
+        StoredTS,
 
     Payload = <<"REPORT", PollRx:40, RespTx:40, SymTx:40, FinalRx:40>>,
     ieee802154:transmission({NewFC, NewMH, Payload}).
@@ -185,7 +200,7 @@ distance(InitiatorTS, ResponderTS) ->
     TReply2 = FinalTx - SymRx,
 
     Sum = TRound1 + TRound2 + TReply1 + TReply2,
-    TProp = ( (TRound1*TRound2) - (TReply1*TRound2 ) ) / Sum,
+    TProp = (TRound1 * TRound2 - TReply1 * TRound2) / Sum,
     Tof = TProp * ?TU,
     Distance = Tof * ?C,
     Distance.

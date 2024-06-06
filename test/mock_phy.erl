@@ -1,30 +1,25 @@
 -module(mock_phy).
+
 -behaviour(gen_server).
 
 -export([start_link/2]).
 -export([start/2]).
 -export([stop_link/0]).
-
 -export([transmit/2]).
 -export([reception/0]).
 -export([reception/1]).
 -export([disable_rx/0]).
-
 -export([set_preamble_timeout/1]).
 -export([disable_preamble_timeout/0]).
-
 -export([suspend_frame_filtering/0]).
 -export([resume_frame_filtering/0]).
-
 -export([read/1]).
 -export([write/2]).
-
 -export([rx_ranging_info/0]).
 -export([signal_power/0]).
 -export([rx_preamble_repetition/0]).
 -export([rx_data_rate/0]).
 -export([prf_value/0]).
-
 %%% gen_server callbacks
 -export([init/1]).
 -export([handle_call/3]).
@@ -81,71 +76,94 @@ rx_ranging_info() ->
 %% @doc Returns the estimated value of the signal power in dBm
 %% cf. user manual section 4.7.2
 signal_power() ->
-    C = channel_impulse_resp_pow() , % Channel impulse resonse power value (CIR_PWR)
-    A = case prf_value() of
-            16 -> 113.77;
-            64 -> 121.74
-        end, % Constant. For PRF of 16 MHz = 113.77, for PRF of 64MHz = 121.74
-    N = preamble_acc(), % Preamble accumulation count value (RXPACC but might be ajusted)
-    Num = C* math:pow(2, 17),
+    % Channel impulse resonse power value (CIR_PWR)
+    C = channel_impulse_resp_pow(),
+    A =
+        case prf_value() of
+            16 ->
+                113.77;
+            64 ->
+                121.74
+        end,
+    % Constant. For PRF of 16 MHz = 113.77, for PRF of 64MHz = 121.74
+
+    % Preamble accumulation count value (RXPACC but might be ajusted)
+    N = preamble_acc(),
+    Num = C * math:pow(2, 17),
     Dem = math:pow(N, 2),
     Log = math:log10(Num / Dem),
-    10 *  Log - A.
+    10 * Log - A.
 
 preamble_acc() ->
     #{rxpacc := RXPACC} = read(rx_finfo),
     #{rxpacc_nosat := RXPACC_NOSAT} = read(drx_conf),
-    if 
-        RXPACC == RXPACC_NOSAT -> RXPACC;
-        true -> RXPACC - 5
+    if
+        RXPACC == RXPACC_NOSAT ->
+            RXPACC;
+        true ->
+            RXPACC - 5
     end.
 
 channel_impulse_resp_pow() ->
     #{cir_pwr := CIR_POW} = read(rx_fqual),
     CIR_POW.
 
-%% @doc Gives the value of the PRF in MHz 
+%% @doc Gives the value of the PRF in MHz
 -spec prf_value() -> 16 | 64.
 prf_value() ->
     #{agc_tune1 := AGC_TUNE1} = read(agc_ctrl),
     case AGC_TUNE1 of
-        16#8870 -> 16;
-        16#889B -> 64
+        16#8870 ->
+            16;
+        16#889B ->
+            64
     end.
 
 %% @doc returns the preamble symbols repetition
 rx_preamble_repetition() ->
     #{rxpsr := RXPSR} = read(rx_finfo),
     case RXPSR of
-        0 -> 16;
-        1 -> 64;
-        2 -> 1024;
-        3 -> 4096
+        0 ->
+            16;
+        1 ->
+            64;
+        2 ->
+            1024;
+        3 ->
+            4096
     end.
 
 %% @doc returns the data rate of the received frame in kbps
 rx_data_rate() ->
     #{rxbr := RXBR} = read(rx_finfo),
     case RXBR of
-        0 -> 110;
-        1 -> 850;
-        3 -> 6800
+        0 ->
+            110;
+        1 ->
+            850;
+        3 ->
+            6800
     end.
 
 %%% gen_server callbacks
 init(_Params) ->
     {ok, #{regs => pmod_uwb_registers:default()}}.
 
-handle_call({transmit, Data, Options}, _From, State) -> {reply, tx(Data, Options), State};
-handle_call({reception}, _From, State) -> {reply, rx(), State};
-handle_call({read, Reg}, _From, #{regs := Regs} = State) -> {reply, maps:get(Reg, Regs), State};
-handle_call({write, Reg, Val}, _From, #{regs := Regs} = State) -> {reply, ok, State#{regs => pmod_uwb_registers:update_reg(Regs, Reg, Val)}};
-handle_call({rx_off}, _From, State) -> {reply, ok, State};
-handle_call(_Request, _From, _State) -> error(not_implemented).
+handle_call({transmit, Data, Options}, _From, State) ->
+    {reply, tx(Data, Options), State};
+handle_call({reception}, _From, State) ->
+    {reply, rx(), State};
+handle_call({read, Reg}, _From, #{regs := Regs} = State) ->
+    {reply, maps:get(Reg, Regs), State};
+handle_call({write, Reg, Val}, _From, #{regs := Regs} = State) ->
+    {reply, ok, State#{regs => pmod_uwb_registers:update_reg(Regs, Reg, Val)}};
+handle_call({rx_off}, _From, State) ->
+    {reply, ok, State};
+handle_call(_Request, _From, _State) ->
+    error(not_implemented).
 
 handle_cast(_Request, _State) ->
-  error(not_implemented).
-
+    error(not_implemented).
 
 % --- Internal -----------------------------------------
 tx(_Data, _Options) ->

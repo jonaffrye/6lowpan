@@ -5,7 +5,7 @@
 % When an application will request a transmission the module has to suspend the rx before transmitting
 % At the transmission of a frame, the module will have the task to check if there is enough time to transmit the frame (e.g. before the next beacon)
 % At the transmisson of a data frame with AR=1 the module has to manage the retransmission of the frame if the ACK isn't correctly received
-%   This is because this module will be responsible to check if the retransmission can be done (no beacons or not a CAP) and the reception can't be resumed between retransmission (both are responsabilities of this module) 
+%   This is because this module will be responsible to check if the retransmission can be done (no beacons or not a CAP) and the reception can't be resumed between retransmission (both are responsabilities of this module)
 %
 % Beacon enabled
 % No transmission during beacon
@@ -22,36 +22,32 @@
 -include("pmod_uwb.hrl").
 
 -callback init(PhyModule) -> State when
-      PhyModule :: module(),
-      State     :: term().
+    PhyModule :: module(),
+    State :: term().
 -callback on(State, Callback, Ranging) -> Result when
-      State       :: term(),
-      Callback    :: input_callback_raw_frame(),
-      Ranging     :: boolean(),
-      Result      :: {ok, State}
-                     | {error, State, Error},
-      Error       :: atom().
--callback off(State) -> {ok, State} when
-      State :: term().
+    State :: term(),
+    Callback :: input_callback_raw_frame(),
+    Ranging :: boolean(),
+    Result :: {ok, State} | {error, State, Error},
+    Error :: atom().
+-callback off(State) -> {ok, State} when State :: term().
 % Add suspend and resume later
 -callback tx(State, Frame, Pib, Ranging) -> Result when
-      State       :: term(),
-      Frame       :: bitstring(),
-      Pib         :: pib_state(),
-      Ranging     :: ranging_tx(),
-      Result      :: {ok, State, RangingInfo}
-                    | {error, State, Error},
-      RangingInfo :: ranging_informations(),
-      Error       :: tx_error().
+    State :: term(),
+    Frame :: bitstring(),
+    Pib :: pib_state(),
+    Ranging :: ranging_tx(),
+    Result :: {ok, State, RangingInfo} | {error, State, Error},
+    RangingInfo :: ranging_informations(),
+    Error :: tx_error().
 -callback rx(State) -> Result when
-      State  :: term(),
-      Result :: {ok, State, Frame}
-                | {error, State, Error},
-      Frame  :: bitstring(),
-      Error  :: atom().
+    State :: term(),
+    Result :: {ok, State, Frame} | {error, State, Error},
+    Frame :: bitstring(),
+    Error :: atom().
 -callback terminate(State, Reason) -> ok when
-      State  :: term(),
-      Reason :: term().
+    State :: term(),
+    Reason :: term().
 
 -export([start/2]).
 -export([turn_on/3]).
@@ -64,45 +60,50 @@
 
 -export_type([state/0, input_callback_raw_frame/0]).
 
--opaque state() :: {Module::module(), Sub::term()}.
+-opaque state() :: {Module :: module(), Sub :: term()}.
 
--type input_callback_raw_frame() :: fun((Frame                  :: binary(),
-                                         LQI                    :: integer(),
-                                         UWBPRF                 :: uwb_PRF(),
-                                         Security               :: ieee802154:security(),
-                                         UWBPreambleRepetitions :: uwb_preamble_symbol_repetition(),
-                                         DataRate               :: data_rate(),
-                                         Ranging                :: ieee802154:ranging_informations())
-                                        -> ok).
+-type input_callback_raw_frame() ::
+    fun(
+        (
+            Frame :: binary(),
+            LQI :: integer(),
+            UWBPRF :: uwb_PRF(),
+            Security :: ieee802154:security(),
+            UWBPreambleRepetitions :: uwb_preamble_symbol_repetition(),
+            DataRate :: data_rate(),
+            Ranging :: ieee802154:ranging_informations()
+        ) -> ok
+    ).
 
 %--- API -----------------------------------------------------------------------
 
 % @doc initialize the duty cycle module
 % @end
 -spec start(Module, PhyModule) -> State when
-      Module :: module(),
-      PhyModule :: module(),
-      State :: state().
+    Module :: module(),
+    PhyModule :: module(),
+    State :: state().
 start(Module, PhyModule) ->
     {Module, Module:init(PhyModule)}.
 
 % @doc turns on the continuous reception
 % @TODO specify which RX module has to be used
 -spec turn_on(State, Callback, Ranging) -> Result when
-      State    :: state(),
-      Callback :: input_callback_raw_frame(),
-      Ranging  :: flag(),
-      Result   :: {ok, State} | {error, State, Error},
-      Error    :: atom().
+    State :: state(),
+    Callback :: input_callback_raw_frame(),
+    Ranging :: flag(),
+    Result :: {ok, State} | {error, State, Error},
+    Error :: atom().
 turn_on({Mod, Sub}, Callback, Ranging) ->
     case Mod:on(Sub, Callback, Ranging) of
-        {ok, Sub2} -> {ok, {Mod, Sub2}};
-        {error, Sub2, Error} -> {error, {Mod, Sub2}, Error}
+        {ok, Sub2} ->
+            {ok, {Mod, Sub2}};
+        {error, Sub2, Error} ->
+            {error, {Mod, Sub2}, Error}
     end.
 
 % @doc turns off the continuous reception
--spec turn_off(State) -> State when
-      State :: state().
+-spec turn_off(State) -> State when State :: state().
 turn_off({Mod, Sub}) ->
     {ok, Sub2} = Mod:off(Sub),
     {Mod, Sub2}.
@@ -117,15 +118,14 @@ turn_off({Mod, Sub}) ->
 % <li> `channel_access_failure': the CSMA-CA algorithm failed</li>
 % @end
 -spec tx_request(State, Frame, Pib, Ranging) -> Result when
-      State       :: state(),
-      Frame       :: bitstring(),
-      Pib         :: pib_state(),
-      Ranging     :: ranging_tx(),
-      State       :: state(),
-      Result      :: {ok, State, RangingInfo}
-                     | {error, State, Error},
-      RangingInfo :: ranging_informations(),
-      Error       :: tx_error().
+    State :: state(),
+    Frame :: bitstring(),
+    Pib :: pib_state(),
+    Ranging :: ranging_tx(),
+    State :: state(),
+    Result :: {ok, State, RangingInfo} | {error, State, Error},
+    RangingInfo :: ranging_informations(),
+    Error :: tx_error().
 tx_request({Mod, Sub}, Frame, Pib, Ranging) ->
     case Mod:tx(Sub, Frame, Pib, Ranging) of
         {ok, Sub2, RangingInfo} ->
@@ -135,18 +135,20 @@ tx_request({Mod, Sub}, Frame, Pib, Ranging) ->
     end.
 
 -spec rx_request(State) -> {ok, State, Frame} | {error, State, Error} when
-      State :: state(),
-      Frame :: bitstring(),
-      Error :: atom().
+    State :: state(),
+    Frame :: bitstring(),
+    Error :: atom().
 rx_request({Mod, Sub}) ->
     case Mod:rx(Sub) of
-        {ok, Sub2, Frame} -> {ok, {Mod, Sub2}, Frame};
-        {error, Sub2, Error} -> {error, {Mod, Sub2}, Error}
+        {ok, Sub2, Frame} ->
+            {ok, {Mod, Sub2}, Frame};
+        {error, Sub2, Error} ->
+            {error, {Mod, Sub2}, Error}
     end.
 
 % @doc stop the duty cycle module
 -spec stop(State, Reason) -> ok when
-      State  :: state(),
-      Reason :: atom().
+    State :: state(),
+    Reason :: atom().
 stop({Mod, Sub}, Reason) ->
     Mod:terminate(Sub, Reason).

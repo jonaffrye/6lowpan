@@ -1,13 +1,15 @@
 -module(frame_handler).
+
 -behaviour(gen_server).
+
 -include_lib("common_test/include/ct.hrl").
+
 -include("../src/mac_frame.hrl").
+
 %%% API
 -export([start/1]).
 -export([rx_frame/4]).
 -export([stop/0]).
-
-
 -export([init/1]).
 -export([handle_cast/2]).
 -export([handle_info/2]).
@@ -34,29 +36,24 @@ handle_cast({rx, Frame}, #{node_mac_address := NodeMacAddress} = State) ->
     {FC, MH, Payload} = Frame,
 
     From = MH#mac_header.src_addr,
-    %io:format("From node~p~n", [From]),   
-
+    %io:format("From node~p~n", [From]),
     CurrNodeMacAdd = NodeMacAddress,
     DstMacAdd = MH#mac_header.dest_addr,
     %io:format("~nIn Callback~nCurrNodeMacAdd: ~p~nDstMacAdd: ~p~n", [CurrNodeMacAdd, DstMacAdd]),
- 
     BroadcastAdd = <<"ÿÿ">>,
 
     case DstMacAdd of
         CurrNodeMacAdd ->
             io:format("Dest reached, Forwarding to lowpan layer~n"),
             gen_statem:cast(lowpan_layer, {new_frame, Payload});
-
         BroadcastAdd ->
             io:format("Ack received~n");
-
         _ ->
             NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = DstMacAdd},
             NewFrame = {FC, NewMH, Payload},
             io:format("Not the dest, Keep forwarding~n"),
             ieee802154:transmission(NewFrame)
     end;
-
 handle_cast(_, State) ->
     {noreply, State}.
 
