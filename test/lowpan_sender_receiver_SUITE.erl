@@ -20,9 +20,11 @@
     multicast_sender/1,
     multicast_receiver/1,
     routing_req_sender/1,
-    routing_req_receiver/1,
+    routing_req_receiver2/1,
+    routing_req_receiver3/1,
     big_pyld_routing_sender/1,
-    big_pyld_routing_receiver/1
+    big_pyld_routing_receiver2/1,
+    big_pyld_routing_receiver3/1
 ]).
 
 all() ->
@@ -42,8 +44,8 @@ groups() ->
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
         {multicast_src_tx, [parallel, {repeat, 1}], [multicast_sender, multicast_receiver]},
-        {routing_req_tx_rx, [parallel, {repeat, 1}], [routing_req_sender, routing_req_receiver]},
-        {big_pyld_routing_tx_rx, [parallel, {repeat, 1}], [big_pyld_routing_sender, big_pyld_routing_receiver]}
+        {routing_req_tx_rx, [parallel, {repeat, 1}], [routing_req_sender, routing_req_receiver3, routing_req_receiver2]},
+        {big_pyld_routing_tx_rx, [parallel, {repeat, 1}], [big_pyld_routing_sender, big_pyld_routing_receiver2, big_pyld_routing_receiver3]}
     ].
 
 init_per_group(simple_tx_rx, Config) ->
@@ -60,7 +62,7 @@ init_per_group(_, Config) ->
     Config.
 
 init_per_group_setup(GroupName, Config) ->
-    {NetPid, Network} = lowpan_node:boot_network_node(#{loss => false}),
+    {NetPid, Network} = lowpan_node:boot_network_node(#{loss => true}),
     io:format("Initializing group: ~p~n", [GroupName]),
     Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
     BigPayload = lowpan:generate_chunks(),
@@ -108,9 +110,21 @@ setup_packet(Src, Dst, Payload) ->
     ipv6:build_ipv6_packet(IPv6Header, Payload).
 
 end_per_group(_Group, Config) ->
-    Network = ?config(network, Config),
-    NetPid = ?config(net_pid, Config),
-    lowpan_node:stop_network_node(Network, NetPid).
+    Network = proplists:get_value(network, Config),
+    NetPid = proplists:get_value(net_pid, Config),
+    
+    if
+        Network =:= undefined ->
+            io:format("Error: Network not found in Config~n"),
+            {error, network_not_found};
+        NetPid =:= undefined ->
+            io:format("Error: NetPid not found in Config~n"),
+            {error, net_pid_not_found};
+        true ->
+            lowpan_node:stop_network_node(Network, NetPid),
+            ok
+    end.
+
 
 
 %---------- Tests cases initialization ------------------------------------------------
@@ -155,32 +169,38 @@ init_per_testcase(TestCase, Config) ->
             Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
             [{node1, Node} | Config];
 
-        routing_req_receiver ->
+        routing_req_receiver2 ->
             Callback = fun lowpan_layer:input_callback/4,
-
             Node2MacAddress = ?config(node2_mac_address, Config),
             Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
             
-            Node3MacAddress = ?config(node3_mac_address, Config),
-            Node3 = lowpan_node:boot_lowpan_node("node3", Network, Node3MacAddress, Callback, ?Node3_routing_table),
+            [{node2, Node2}| Config];
 
-            [{node2, Node2}, {node3, Node3} | Config];
+        routing_req_receiver3 ->
+            Callback = fun lowpan_layer:input_callback/4,
+            Node3MacAddress = ?config(node3_mac_address, Config),
+            Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Node3_routing_table),
+
+            [{node3, Node3} | Config];
 
         big_pyld_routing_sender ->
             Node1MacAddress = ?config(node1_mac_address, Config),
             Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
             [{node1, Node} | Config];
 
-        big_pyld_routing_receiver ->
+        big_pyld_routing_receiver2 ->
             Callback = fun lowpan_layer:input_callback/4,
-
             Node2MacAddress = ?config(node2_mac_address, Config),
             Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
             
+            [{node2, Node2}| Config];
+
+        big_pyld_routing_receiver3 ->
+            Callback = fun lowpan_layer:input_callback/4,
             Node3MacAddress = ?config(node3_mac_address, Config),
             Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Node3_routing_table),
 
-            [{node2, Node2}, {node3, Node3} | Config];
+            [{node3, Node3} | Config];
 
         _ ->
             Config
@@ -289,9 +309,8 @@ routing_req_sender(Config) ->
 %-------------------------------------------------------------------------------
 % Reception of a routed packet
 %-------------------------------------------------------------------------------
-routing_req_receiver(Config) ->
+routing_req_receiver2(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
-    {Pid3, Node3} = ?config(node3, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
@@ -300,14 +319,17 @@ routing_req_receiver(Config) ->
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
     ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
-    _ = erpc:call(Node3, lowpan_layer, frame_reception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node2"),
-    lowpan_node:stop_lowpan_node(Pid2, Node2),
-    lowpan_node:stop_lowpan_node(Pid3, Node3).
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+routing_req_receiver3(Config) ->
+    {Pid3, Node3} = ?config(node3, Config),
+    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node3, Pid3).
 
 %-------------------------------------------------------------------------------
 % Send a big packet that needs routing from node 1 to node 3
@@ -316,28 +338,34 @@ big_pyld_routing_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
     ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
-    ct:pal("Big payload with routing sent successfully from node1 to node3"),
+    ct:pal("Big routed packet sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
 %-------------------------------------------------------------------------------
 % Reception of a big payload with routing by node 3
 %-------------------------------------------------------------------------------
-big_pyld_routing_receiver(Config) ->
-    {Pid2, Node2}  = ?config(node2, Config),
-    {Pid3, Node3}  = ?config(node3, Config),
-    IPv6Pckt = ?config(ipv6_packet, Config),
 
+big_pyld_routing_receiver2(Config) ->
+    {_, Node2}  = ?config(node2, Config),
+    erpc:call(Node2, lowpan_layer, frame_reception, []).
+    %lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+big_pyld_routing_receiver3(Config) ->
+    {Pid3, Node3} = ?config(node3, Config),
+    
+    IPv6Pckt = ?config(ipv6_packet, Config),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
     PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
-    _ = erpc:call(Node3, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node3, lowpan_layer, frame_reception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
-    ct:pal("Big routed packet received successfully at node2"),
-    lowpan_node:stop_lowpan_node(Pid2, Node2),
-    lowpan_node:stop_lowpan_node(Pid3, Node3).
+    ct:pal("Routed packet received successfully at node2"),
+
+    lowpan_node:stop_lowpan_node(Node3, Pid3).
+
+

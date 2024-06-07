@@ -15,6 +15,7 @@
          payload}).
 -record(datagramInfo, {fragtype, datagramSize, datagramTag, datagramOffset, payload}).
 
+
 %----------------------------------------------Dispatch Type and Header---------------------------------------------
 
 %@doc dispatch value bit pattern from rfc4944, DH stands for dispatch header
@@ -29,6 +30,7 @@
 -define(FRAG1_DHTYPE, 2#11000). % Frist fragmentation Header
 -define(FRAGN_DHTYPE, 2#11100). % Subsequent fragmentation Header
 -define(UDP_DHTYPE, 2#11110). % UDP header compression
+
 -define(Oxf0b, 2#111100001011).
 -define(Oxf0, 2#11110000).
 
@@ -43,7 +45,7 @@
     ?FRAG1_DHTYPE |
     ?FRAGN_DHTYPE.
 
-%-----------------------------------------Fragmentation Type and Header----------------------------------------------------
+%---------------------------------------- Fragmentation Type and Header ---------------------------------------------------
 
 -type frag_type() :: ?FRAG1_DHTYPE | ?FRAGN_DHTYPE.
 
@@ -59,17 +61,14 @@
          cmpt,
          fragments}).
 
--define(MAX_FRAME_SIZE,
-        80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
+-define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
+-define(MAX_FRAG_SIZE, 2047). % 11 bits datagram_size
 -define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
--define(FRAG_HEADER_SIZE,
-        5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
--define(DATAGRAMS_MAP,
-        #{}). % map of received datagrams, the keys are the tag of datagrams
+-define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
+-define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 
-%----------------------------------------------------Header Compression------------------------------------------------------
-% TODO: move to ipv6.hrl later
 
+%--------------------------------------------------- Header Compression -----------------------------------------------------
 -record(ipv6_header,
         {version = 2#0110, % 4-bit Internet Protocol version number = 6
          traffic_class, % 8-bit traffic class field
@@ -114,10 +113,10 @@
                                                                                                                                                                                                                                                                                                                                                           % add more context prefix
 -define(SHORT_ADD_LEN, 2).
 -define(EXTENDED_ADD_LEN, 8).
-%-type lowpan_parameters() :: #lowpan_parameters{}.
 
-%----------------------------------------------------Routing table-----------------------------------------------------------
+%---------------------------------------------------- Routing ----------------------------------------------------------------
 -define(BroadcastAdd, <<"ÿÿ">>).
+-define(ACK_FRAME, <<>>).
 
 -record(mesh_header,
         {mesh_type = ?MESH_DHTYPE,
@@ -126,6 +125,7 @@
          hops_left,
          originator_address,
          final_destination_address}).
+        
 -record(meshInfo,
         {version = 6,
          v_bit,
@@ -135,7 +135,7 @@
          final_destination_address,
          payload}).
 
-%%% Constants
+
 -define(Max_Hops, 10).
 -define(node1_addr, <<16#CAFEDECA00000001:64>>).
 -define(node2_addr, <<16#CAFEDECA00000002:64>>).

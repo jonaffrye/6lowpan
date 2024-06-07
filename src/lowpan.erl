@@ -2,30 +2,21 @@
 
 -include("lowpan.hrl").
 
-%-include("mac_layer.hrl").
-%-include("ieee802154.hrl").
-
 -export([
     pkt_encapsulation/2,
-    create_iphc_pckt/2,
     fragment_ipv6_packet/2,
     fragment_ipv6_packet/1,
     reassemble_datagram/2,
     reassemble_datagrams/1,
-    reassemble/2,
-    build_iphc_header/1,
+    reassemble/2,create_iphc_pckt/2,
     get_ipv6_pkt/2,
     datagram_info/1,
     compress_ipv6_header/1,
     build_datagram_pckt/2,
-    build_firstFrag_pckt/5, build_firstFrag_pckt/4,
-    convert_iphc_tuple_to_bin/1,
+    build_firstFrag_pckt/5,
     get_ipv6_pckt_info/1,
     get_ipv6_payload/1,
-    trigger_fragmentation/2, trigger_fragmentation/1,
-    map_to_binary/1,
-    tuple_list_to_binary/1,
-    binary_to_lis/1,
+    trigger_fragmentation/1,
     decompress_ipv6_header/2,
     get_default_LL_add/1,
     encode_integer/1,
@@ -45,7 +36,7 @@
     get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,generate_LL_addr/1,
     create_new_mesh_header/2,
     create_new_mesh_datagram/3,
-    check_duplicate_frag/5, remove_mesh_header/1, build_mesh_packet/6
+    check_duplicate_frag/5, remove_mesh_header/1, convert_addr_to_bin/1
 ]).
 
 %-------------------------------------------------------------------------------
@@ -53,12 +44,6 @@
 %-------------------------------------------------------------------------------
 get_ipv6_pkt(Header, Payload) ->
     ipv6:build_ipv6_packet(Header, Payload).
-
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%
-%                                                             FROM IPv6 to Mac layer
-%
-%------------------------------------------------------------------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
 % create an uncompressed 6lowpan packet from an Ipv6 packet
@@ -77,221 +62,6 @@ get_unc_ipv6(Ipv6Pckt) ->
 %
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
-% @doc Creates an Iphc binary header
-% @param IphcHeader: Ipv6 header
-% @returns a binary containing IPHC header fields
-% @end
-%-------------------------------------------------------------------------------
-build_iphc_header(IphcHeader) ->
-    #iphc_header{
-        dispatch = Dispatch,
-        tf = Tf,
-        nh = Nh,
-        hlim = Hlim,
-        cid = Cid,
-        sac = Sac,
-        sam = Sam,
-        m = M,
-        dac = Dac,
-        dam = Dam
-    } =
-        IphcHeader,
-
-    <<Dispatch:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2>>.
-
-%-------------------------------------------------------------------------------
-% create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
-%-------------------------------------------------------------------------------
-create_iphc_pckt(IphcHeader, Payload) ->
-    <<IphcHeader/binary, Payload/bitstring>>.
-
-%-------------------------------------------------------------------------------
-% @doc return value field of a given Ipv6 packet in a record form
-% @end
-%-------------------------------------------------------------------------------
-get_ipv6_pckt_info(Ipv6Pckt) ->
-    <<Version:4, TrafficClass:8, FlowLabel:20, PayloadLength:16, NextHeader:8, HopLimit:8, SourceAddress:128, DestAddress:128, Payload/bitstring>> =
-        Ipv6Pckt,
-    PckInfo =
-        #ipv6PckInfo{
-            version = Version,
-            trafficClass = TrafficClass,
-            flowLabel = FlowLabel,
-            payloadLength = PayloadLength,
-            nextHeader = NextHeader,
-            hopLimit = HopLimit,
-            sourceAddress = SourceAddress,
-            destAddress = DestAddress,
-            payload = Payload
-        },
-    PckInfo.
-
-%-------------------------------------------------------------------------------
-% @doc return UDP data from a given Ipv6 packet if it contains a UDP nextHeader
-% @end
-%-------------------------------------------------------------------------------
-get_udp_data(Ipv6Pckt) ->
-    <<_:320, UdpPckt:64, _/binary>> = Ipv6Pckt,
-    UdpPckt.
-
-%-------------------------------------------------------------------------------
-% return the payload of a given Ipv6 packet
-%-------------------------------------------------------------------------------
-get_ipv6_payload(Ipv6Pckt) ->
-    <<_:192, _:128, Payload/binary>> = Ipv6Pckt,
-    Payload.
-
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Packet Compression Helper
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-
-%-------------------------------------------------------------------------------
-% Encode a list in a binary format
-%-------------------------------------------------------------------------------
-encode_list_to_bin(List) ->
-    EncodedValues = [encode_integer(I) || I <- List],
-    %% Use to optimize encoding
-    list_to_bin(EncodedValues).
-
-%-------------------------------------------------------------------------------
-% Encode an Integer value in a binary format using an appropriate amount of bit
-%-------------------------------------------------------------------------------
-encode_integer(I) when I =< 255 ->
-    <<I:8>>;
-encode_integer(I) when I =< 65535 ->
-    <<I:16>>;
-encode_integer(I) when I =< 4294967295 ->
-    <<I:32>>;
-encode_integer(I) ->
-    <<I:64>>.
-
-%-------------------------------------------------------------------------------
-% Convert a list in a binary format
-%-------------------------------------------------------------------------------
-list_to_bin(List) ->
-    list_to_bin(List, <<>>).
-
-list_to_bin([H | T], Acc) ->
-    list_to_bin(T, <<Acc/binary, H/binary>>);
-list_to_bin([], Acc) ->
-    Acc.
-
-%-------------------------------------------------------------------------------
-% Convert a map in a binary format
-%-------------------------------------------------------------------------------
-map_to_binary(CarriedInlineMap) ->
-    % get value from map
-    Values = maps:values(CarriedInlineMap),
-    binaryValues = encode_list_to_bin(lists:reverse(Values)),
-    %-------------------------------------------------------------------------------
-    binaryValues.
-% Convert a map to a tupple
-%-------------------------------------------------------------------------------
-%map_to_tuple(CarriedInlineMap) ->
-%    Values = maps:values(CarriedInlineMap), %get value from map
-%    %io:format("Recovered values: ~p~n", [Values]),
-%    Tuple = erlang:list_to_tuple(Values),
-
-%    Tuple.
-
-%-------------------------------------------------------------------------------
-% Convert a binary to a tuple format
-%-------------------------------------------------------------------------------
-%binary_to_tuple(Bin)->
-%    erlang:list_to_tuple(binary_to_lis(Bin)).
-
-%-------------------------------------------------------------------------------
-% Convert a binary to a list
-%-------------------------------------------------------------------------------
-binary_to_lis(BinaryValues) ->
-    % binary to integer list conversion
-    Values = erlang:binary_to_list(BinaryValues),
-    Values.
-
-%-------------------------------------------------------------------------------
-% Convert an Iphc header in tuple form in a binary format
-%-------------------------------------------------------------------------------
-convert_iphc_tuple_to_bin(IphcHeaderTuple) ->
-    {Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam} = IphcHeaderTuple,
-
-    % we add 3 padding bits to make it a multiple of 8
-    binary =
-        <<?IPHC_DHTYPE, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, 0:3>>,
-    binary.
-
-%-------------------------------------------------------------------------------
-% Convert a list of tuple to binary format
-%-------------------------------------------------------------------------------
-tuple_list_to_binary(CarriedInlineList) ->
-    io:format("Tuple list to bin: ~p~n", [CarriedInlineList]),
-    % Extract while preserving the order
-    Values = [Value || {_, Value} <- CarriedInlineList],
-    binaryValues = encode_list_to_bin(Values),
-    binaryValues.
-
-%-------------------------------------------------------------------------------
-% Generate a EUI64 address from the mac address
-%-------------------------------------------------------------------------------
-generate_EUI64_mac_addr(MacAddress)->
-    case byte_size(MacAddress) of
-        ?SHORT_ADD_LEN -> 
-            io:format("Convert short 16bit addr~n"),
-            get_EUI64_from_short_mac(MacAddress);
-        ?EXTENDED_ADD_LEN ->
-            io:format("Convert extended 64bit addr~n"), 
-            get_EUI64_from_extended_mac(MacAddress)
-            
-    end. 
-
-%-------------------------------------------------------------------------------
-% Generate a EUI64 address from the 48bit mac address
-%-------------------------------------------------------------------------------
-get_EUI64_from_48bit_mac(MacAddress)->
-    <<First:24, Last:24>> = MacAddress, 
-    <<A:8, Rest:16>> = <<First:24>>,
-    NewA = A bxor 2, % invert the 7th bit of the first byte
-    EUI64 = <<NewA:8, Rest:16, 16#fffe:16, Last:24>>,
-    EUI64.
-
-%-------------------------------------------------------------------------------
-% Generate a EUI64 address from the 64bit extended mac address
-%-------------------------------------------------------------------------------
-get_EUI64_from_extended_mac(MacAddress)->
-    <<A:8, Rest:56>> = MacAddress,  
-    NewA = A bxor 2,   
-    <<NewA:8, Rest:56>>.
-
-%-------------------------------------------------------------------------------
-% Generate a EUI64 address from the 16bit short mac address
-%-------------------------------------------------------------------------------
-get_EUI64_from_short_mac(MacAddress)->
-    PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
-    Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
-    <<A:8, Rest:40>> = Extended48Bit, 
-    ULBSetup = A band 16#FD, % replace 7th bit of first byte by 0
-    <<First:16, Last:24>> = <<Rest:40>>,
-    EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
-    EUI64.
-
-%-------------------------------------------------------------------------------
-% Generate a link-local address by adding 0 padding to the mac adress
-%-------------------------------------------------------------------------------
-get_default_LL_add(MacAddr)->
-    LLAdd = <<16#FE80:16, 0:48, MacAddr/binary>>,
-    LLAdd.
-
-%-------------------------------------------------------------------------------
-% Stateless link local address generation
-%-------------------------------------------------------------------------------
-generate_LL_addr(MacAddress)->
-    EUI64 = generate_EUI64_mac_addr(MacAddress),
-    LLAdd = <<16#FE80:16, 0:46, EUI64/binary>>,
-    LLAdd.
-
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           End of PC Helper
-%------------------------------------------------------------------------------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
 %         General form of 6Lowpan compression with UDP as nextHeader
@@ -307,6 +77,7 @@ generate_LL_addr(MacAddress)->
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 %    * | L4 data ...                                                   |
 %    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
 
 %-------------------------------------------------------------------------------
 % @doc compress an Ipv6 packet header according to the IPHC compression scheme
@@ -413,23 +184,16 @@ process_tf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
 %-------------------------------------------------------------------------------
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?UDP_PN ->
     % TODO after implementing NHC, modify return value for UDP, TCP and ICMP
-    %Bin = <<NextHeader>>,
-    %L = [Bin],
-    %UpdatedList = [CarrInlineList, L],
-
-    % UDP %TODO check compression for UDP
     {1, CarrInlineMap, CarrInlineList};
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?TCP_PN ->
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    % TCP
     {0, CarrInlineMap#{"NextHeader" => ?TCP_PN}, UpdatedList};
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?ICMP_PN ->
     Bin = <<NextHeader>>,
     L = [Bin],
     UpdatedList = [CarrInlineList, L],
-    % ICMPv6
     {0, CarrInlineMap#{"NextHeader" => ?ICMP_PN}, UpdatedList};
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) ->
     Bin = <<NextHeader>>,
@@ -475,36 +239,6 @@ process_cid(SrcAdd, _, CarrInlineMap, CarrInlineList) ->
             {0, CarrInlineMap, CarrInlineList};
         _-> {1, CarrInlineMap, CarrInlineList}
     end.
-
-% ?MESH_LOCAL_PREFIX ->
-%     Bin = <<0:8,0:8>>,
-%     L = [Bin],
-%     UpdatedList = [CarrInlineList, L],
-%     UpdatedMap = CarrInlineMap#{"CID"=>0},
-%     {1, UpdatedMap, UpdatedList})
-
-% ?GLOBAL_PREFIX_1 ->
-%     Bin = <<1:8, 1:8>>,
-%     L = [Bin],
-%     UpdatedList = [CarrInlineList, L],
-%     UpdatedMap = CarrInlineMap#{"CID"=>1},
-%     {1, UpdatedMap, UpdatedList};
-
-%?GLOBAL_PREFIX_2  ->
-%   Bin = <<2:8, 2:8>>,
-
-%  L = [Bin],
-% UpdatedList = [CarrInlineList, L],
-
-%UpdatedMap = CarrInlineMap#{"CID"=>2},
-%{1, UpdatedMap, UpdatedList};
-
-% ?GLOBAL_PREFIX_3  ->
-%     Bin = <<3:8, 3:8>>,
-%     L = [Bin],
-%     UpdatedList = [CarrInlineList, L],
-%     UpdatedMap = CarrInlineMap#{"CID"=>3},
-%     {1, UpdatedMap, UpdatedList}
 
 %-------------------------------------------------------------------------------
 % @private
@@ -872,8 +606,68 @@ process_udp_checksum(Checksum, CarriedInline) ->
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
+%                                                           Packet Compression Helper
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+
+%-------------------------------------------------------------------------------
+% create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
+%-------------------------------------------------------------------------------
+create_iphc_pckt(IphcHeader, Payload) ->
+    <<IphcHeader/binary, Payload/bitstring>>.
+
+%-------------------------------------------------------------------------------
+% @doc return value field of a given Ipv6 packet
+% @end
+%-------------------------------------------------------------------------------
+get_ipv6_pckt_info(Ipv6Pckt) ->
+    <<Version:4, TrafficClass:8, FlowLabel:20, PayloadLength:16, NextHeader:8, HopLimit:8, SourceAddress:128, DestAddress:128, Payload/bitstring>> =
+        Ipv6Pckt,
+    PckInfo =
+        #ipv6PckInfo{
+            version = Version,
+            trafficClass = TrafficClass,
+            flowLabel = FlowLabel,
+            payloadLength = PayloadLength,
+            nextHeader = NextHeader,
+            hopLimit = HopLimit,
+            sourceAddress = SourceAddress,
+            destAddress = DestAddress,
+            payload = Payload
+        },
+    PckInfo.
+
+%-------------------------------------------------------------------------------
+% @doc return UDP data from a given Ipv6 packet if it contains a UDP nextHeader
+% @end
+%-------------------------------------------------------------------------------
+get_udp_data(Ipv6Pckt) ->
+    <<_:320, UdpPckt:64, _/binary>> = Ipv6Pckt,
+    UdpPckt.
+
+%-------------------------------------------------------------------------------
+% return the payload of a given Ipv6 packet
+%-------------------------------------------------------------------------------
+get_ipv6_payload(Ipv6Pckt) ->
+    <<_:192, _:128, Payload/binary>> = Ipv6Pckt,
+    Payload.
+
+
+%-------------------------------------------------------------------------------
+% Encode an Integer value in a binary format using an appropriate amount of bit
+%-------------------------------------------------------------------------------
+encode_integer(I) when I =< 255 ->
+    <<I:8>>;
+encode_integer(I) when I =< 65535 ->
+    <<I:16>>;
+encode_integer(I) when I =< 4294967295 ->
+    <<I:32>>;
+encode_integer(I) ->
+    <<I:64>>.
+
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------
 %
-%                                                       Packet fragmentation
+%                                                            Packet fragmentation
 %
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
@@ -905,11 +699,6 @@ build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, CompressedHeader, Payl
     %PayloadLen = bit_size(Payload),
     <<FragType:5, DatagramSize:11, DatagramTag:16, CompressedHeader/binary, Payload/bitstring>>.
 
-build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, Payload) ->
-    %TODO if wireshark doesn't recongnize it, cange it to binary
-    %PayloadLen = bit_size(Payload),
-    <<FragType:5, DatagramSize:11, DatagramTag:16, Payload/bitstring>>.
-
 %-------------------------------------------------------------------------------
 % create a datagram packet (fragments)
 %-------------------------------------------------------------------------------
@@ -923,6 +712,29 @@ build_datagram_pckt(DtgmHeader, Payload) ->
             Header = build_frag_header(DtgmHeader),
             <<Header/binary, Payload/bitstring>>
     end.
+
+
+%-------------------------------------------------------------------------------
+% check if a packet needs to be compressed or not
+% returns a list of fragments if yes, the orginal packet if not
+%-------------------------------------------------------------------------------
+trigger_fragmentation(CompPckt) when byte_size(CompPckt) =< ?MAX_FRAG_SIZE ->
+    PcktLengt = byte_size(CompPckt),
+
+    ValidLength = PcktLengt =< 127,
+    case ValidLength of
+        false ->
+            io:format("The received Ipv6 packet need fragmentation to be transmitted~n"),
+            Fragments = lowpan:fragment_ipv6_packet(CompPckt),
+            {true, Fragments};
+        true ->
+            io:format("No fragmentation needed~n"),
+            {false, CompPckt}
+    end; 
+
+trigger_fragmentation(_CompPckt) ->
+    error_frag_size.
+
 
 %-------------------------------------------------------------------------------
 % @doc Fragment a given Ipv6 packet
@@ -940,7 +752,7 @@ fragment_ipv6_packet(CompIpv6Pckt) when is_binary(CompIpv6Pckt) ->
     DatagramTag = rand:uniform(65536),
     Size = byte_size(CompIpv6Pckt),
     frag_process(CompIpv6Pckt, DatagramTag, Size, 0, []).
-
+ 
 %-------------------------------------------------------------------------------
 % @private
 % @doc helper function to process the received packet
@@ -985,41 +797,7 @@ frag_process(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
 
     frag_process(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc]).
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Packet Fragmentation Helper
-%------------------------------------------------------------------------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
-% check if a packet needs to be compressed or not
-% returns a list of fragments if yes, the orginal packet if not
-%-------------------------------------------------------------------------------
-trigger_fragmentation(CompPckt, PcktLengt) ->
-    CompPcktLengt = byte_size(CompPckt),
-
-    ValidLength = CompPcktLengt =< 127,
-    case ValidLength of
-        false ->
-            io:format("The received Ipv6 packet need fragmentation to be transmitted~n"),
-            Fragments = lowpan:fragment_ipv6_packet(CompPckt, PcktLengt),
-            {true, Fragments};
-        true ->
-            io:format("No fragmentation needed~n"),
-            false
-    end.
-
-trigger_fragmentation(CompPckt) ->
-    PcktLengt = byte_size(CompPckt),
-
-    ValidLength = PcktLengt =< 127,
-    case ValidLength of
-        false ->
-            io:format("The received Ipv6 packet need fragmentation to be transmitted~n"),
-            Fragments = lowpan:fragment_ipv6_packet(CompPckt),
-            {true, Fragments};
-        true ->
-            io:format("No fragmentation needed~n"),
-            {false, CompPckt}
-    end.
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %
@@ -1299,11 +1077,19 @@ decode_dam(M, DAC, DAM, CarriedInline, _, _) when M == 1; DAC == 1 ->
             {DstAdd, Rest}
     end.
 
+
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %                                                           Packet Decompression Helper
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 
-
+convert_addr_to_bin(Address)->
+    DestAdd = case is_integer(Address) of
+        true -> 
+            lowpan:encode_integer(Address);
+        false ->
+            Address
+    end,
+    DestAdd.
 
 %-------------------------------------------------------------------------------
 % Encode a tuple in a binary format
@@ -1325,11 +1111,7 @@ element_to_binary(Elem) when is_tuple(Elem) ->
 element_to_binary(Elem) when is_list(Elem) ->
     list_to_binary(Elem).
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%
-%                                                         FROM Mac layer to 6LoWPAN
-%
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %
@@ -1582,6 +1364,9 @@ discard_datagram(Tag, Map) ->
 %   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 %
 
+%-------------------------------------------------------------------------------
+% Creates mesh header binary
+%-------------------------------------------------------------------------------
 build_mesh_header(MeshHeader) ->
     #mesh_header{
         v_bit = VBit,
@@ -1594,23 +1379,74 @@ build_mesh_header(MeshHeader) ->
     case {VBit, FBit} of
         {0, 0} ->
             <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress:64/bitstring, FinalDestinationAddress:64/bitstring>>;
+                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
         {0, 1} ->
             <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress:64/binary, FinalDestinationAddress:16/binary>>;
+                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
         {1, 0} ->
             <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress:16/binary, FinalDestinationAddress:64/binary>>;
+                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
         {1, 1} ->
             <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress:16/binary, FinalDestinationAddress:16/binary>>
+                OriginatorAddress/binary, FinalDestinationAddress/binary>>
     end.
 
+%-------------------------------------------------------------------------------
+% Creates new mesh header and returns new datagram
+%-------------------------------------------------------------------------------
+create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
+    io:format("Building new mesh header~n"),
+    VBit =
+        if
+            byte_size(SenderMacAdd) =:= 8 -> 0;
+            true -> 1
+        end,
+    FBit =
+        if
+            byte_size(DstMacAdd) =:= 8 -> 0;
+            true -> 1
+        end,
 
-build_mesh_packet(VBit, FBit, HopsLeft, OrigAddress, FinalDestAddress, Payload) ->
-        <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-            OrigAddress/binary, FinalDestAddress/binary, Payload/bitstring>>. 
+    MeshHeader =
+        #mesh_header{
+            v_bit = VBit,
+            f_bit = FBit,
+            hops_left = ?Max_Hops,
+            originator_address = SenderMacAdd,
+            final_destination_address = DstMacAdd
+        },
+    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    <<BinMeshHeader/binary, Datagram/bitstring>>.
 
+%-------------------------------------------------------------------------------
+% Creates new mesh header
+%-------------------------------------------------------------------------------
+create_new_mesh_header(SenderMacAdd, DstMacAdd) ->
+    VBit =
+        if
+            byte_size(SenderMacAdd) =:= 8 -> 0;
+            true -> 1
+        end,
+    FBit =
+        if
+            byte_size(DstMacAdd) =:= 8 -> 0;
+            true -> 1
+        end,
+
+    MeshHeader =
+        #mesh_header{
+            v_bit = VBit,
+            f_bit = FBit,
+            hops_left = ?Max_Hops,
+            originator_address = SenderMacAdd,
+            final_destination_address = DstMacAdd
+        },
+    io:format("New mesh header created: ~p~n",[MeshHeader]),
+    lowpan:build_mesh_header(MeshHeader).
+
+%-------------------------------------------------------------------------------
+% Returns routing info in mesh header
+%-------------------------------------------------------------------------------
 get_mesh_info(Datagram) ->
     <<_:2, V:1, F:1, _/bitstring>> = Datagram,
 
@@ -1687,7 +1523,64 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress) ->
             {false, <<>>, undefined}
     end.
 
+%-------------------------------------------------------------------------------
+% Generate a EUI64 address from the mac address
+%-------------------------------------------------------------------------------
+generate_EUI64_mac_addr(MacAddress)->
+    case byte_size(MacAddress) of
+        ?SHORT_ADD_LEN -> 
+            io:format("Convert short 16bit addr~n"),
+            get_EUI64_from_short_mac(MacAddress);
+        ?EXTENDED_ADD_LEN ->
+            io:format("Convert extended 64bit addr~n"), 
+            get_EUI64_from_extended_mac(MacAddress)
+            
+    end. 
 
+%-------------------------------------------------------------------------------
+% Generate a EUI64 address from the 48bit mac address
+%-------------------------------------------------------------------------------
+get_EUI64_from_48bit_mac(MacAddress)->
+    <<First:24, Last:24>> = MacAddress, 
+    <<A:8, Rest:16>> = <<First:24>>,
+    NewA = A bxor 2, % invert the 7th bit of the first byte
+    EUI64 = <<NewA:8, Rest:16, 16#fffe:16, Last:24>>,
+    EUI64.
+
+%-------------------------------------------------------------------------------
+% Generate a EUI64 address from the 64bit extended mac address
+%-------------------------------------------------------------------------------
+get_EUI64_from_extended_mac(MacAddress)->
+    <<A:8, Rest:56>> = MacAddress,  
+    NewA = A bxor 2,   
+    <<NewA:8, Rest:56>>.
+
+%-------------------------------------------------------------------------------
+% Generate a EUI64 address from the 16bit short mac address
+%-------------------------------------------------------------------------------
+get_EUI64_from_short_mac(MacAddress)->
+    PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
+    Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
+    <<A:8, Rest:40>> = Extended48Bit, 
+    ULBSetup = A band 16#FD, % replace 7th bit of first byte by 0
+    <<First:16, Last:24>> = <<Rest:40>>,
+    EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
+    EUI64.
+
+%-------------------------------------------------------------------------------
+% Generate a link-local address by adding 0 padding to the mac adress
+%-------------------------------------------------------------------------------
+get_default_LL_add(MacAddr)->
+    LLAdd = <<16#FE80:16, 0:48, MacAddr/binary>>,
+    LLAdd.
+
+%-------------------------------------------------------------------------------
+% Stateless link local address generation
+%-------------------------------------------------------------------------------
+generate_LL_addr(MacAddress)->
+    EUI64 = generate_EUI64_mac_addr(MacAddress),
+    LLAdd = <<16#FE80:16, 0:46, EUI64/binary>>,
+    LLAdd.
 
 %-------------------------------------------------------------------------------
 % Retrieve mac extended address from Ipv6 address
@@ -1696,58 +1589,7 @@ get_EUI64_mac_addr(Address) ->
     <<_:64, MacAddr:64/bitstring>> = <<Address:128>>,
     MacAddr.
 
-%-------------------------------------------------------------------------------
-% Creates new mesh header and returns new datagram
-%-------------------------------------------------------------------------------
-create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
-    io:format("Building new mesh header~n"),
-    VBit =
-        if
-            byte_size(SenderMacAdd) =:= 8 -> 0;
-            true -> 1
-        end,
-    FBit =
-        if
-            byte_size(DstMacAdd) =:= 8 -> 0;
-            true -> 1
-        end,
 
-    MeshHeader =
-        #mesh_header{
-            v_bit = VBit,
-            f_bit = FBit,
-            hops_left = ?Max_Hops,
-            originator_address = SenderMacAdd,
-            final_destination_address = DstMacAdd
-        },
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
-    <<BinMeshHeader/binary, Datagram/bitstring>>.
-
-%-------------------------------------------------------------------------------
-% Creates new mesh header
-%-------------------------------------------------------------------------------
-create_new_mesh_header(SenderMacAdd, DstMacAdd) ->
-    VBit =
-        if
-            byte_size(SenderMacAdd) =:= 8 -> 0;
-            true -> 1
-        end,
-    FBit =
-        if
-            byte_size(DstMacAdd) =:= 8 -> 0;
-            true -> 1
-        end,
-
-    MeshHeader =
-        #mesh_header{
-            v_bit = VBit,
-            f_bit = FBit,
-            hops_left = ?Max_Hops,
-            originator_address = SenderMacAdd,
-            final_destination_address = DstMacAdd
-        },
-        io:format("New mesh header created: ~p~n",[MeshHeader]),
-    lowpan:build_mesh_header(MeshHeader).
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %
@@ -1781,20 +1623,18 @@ hex_to_bytes(Hex) ->
 
 complete_with_padding(Packet) ->
     HeaderLengthBits = bit_size(Packet),
-    % Determine the exact nbr of bit necessary
+    % determine the exact nbr of bit necessary
     PaddingBits = (8 - HeaderLengthBits rem 8) rem 8,
 
     <<Packet/bitstring, 0:PaddingBits>>.
 
 generate_chunks() ->
-    NumChunks = 2,
+    NumChunks = 20,
     ChunkSize = 75,
     Chunks =
         lists:map(fun(N) -> generate_chunk(N, ChunkSize) end, lists:seq(NumChunks, 1, -1)),
     Result = lists:foldl(fun(A, B) -> <<A/binary, B/binary>> end, <<>>, Chunks),
     Result.
-
-%io:format("Generated text:~n~s~n", [Result]).
 
 generate_chunk(N, Size) ->
     Prefix = list_to_binary(io_lib:format("chunk_~2..0B", [N])),
@@ -1804,17 +1644,17 @@ generate_chunk(N, Size) ->
     Padding = list_to_binary(lists:duplicate(PaddingSize, $a)),
     <<Prefix/binary, Padding/binary>>.
 
-generate_comment(Text) ->
-    TotalLength = 80,  %total length of the comment
-    TextLength = length(Text), %length of the initial text
-    %number of dashes needed to reach the total length
-    DashCount = TotalLength - TextLength - 6,
+% generate_comment(Text) ->
+%     TotalLength = 80,  %total length of the comment
+%     TextLength = length(Text), %length of the initial text
+%     %number of dashes needed to reach the total length
+%     DashCount = TotalLength - TextLength - 6,
 
-    Dashes = lists:duplicate(DashCount, $-),% generate the string of dashes
+%     Dashes = lists:duplicate(DashCount, $-),% generate the string of dashes
 
-    % Concatenate the initial text, dashes, and percentage signs
-    Comment =
-        lists:flatten(
-            io_lib:format("~s---------- ~s ~s", ["%", Text, Dashes])),
+%     % Concatenate the initial text, dashes, and percentage signs
+%     Comment =
+%         lists:flatten(
+%             io_lib:format("~s---------- ~s ~s", ["%", Text, Dashes])),
 
-    Comment.
+%     Comment.

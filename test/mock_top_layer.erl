@@ -12,6 +12,7 @@
 -export([rx_frame/4]).
 -export([dump/0]).
 -export([stop/0]).
+
 %%% gen_server callbacks
 -export([init/1]).
 -export([handle_call/3]).
@@ -19,12 +20,12 @@
 -export([handle_info/2]).
 -export([terminate/2]).
 
-%%% MACROS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% MACROS %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 
--define(RCVR_ADDR, <<16#CAFEDECA00000002:64>>).
--define(MDL_ADDR, <<16#CAFEDECA00000003:64>>).
+-define(RCVR_ADDR, <<16#CAFEDECA00000003:64>>).
+-define(MDL_ADDR, <<16#CAFEDECA00000002:64>>).
 
-%%% API %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% API %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% 
 start() ->
     gen_server:start({local, ?MODULE}, ?MODULE, [], []).
 
@@ -44,7 +45,7 @@ init(_) ->
 handle_call({dump}, _From, #{received := Received} = State) ->
     {reply, {ok, lists:reverse(Received)}, State#{received => []}};
 handle_call(_, _, _) ->
-    error(not_implemented).
+  error(not_implemented).
 
 handle_cast({rx, Frame}, #{received := Received} = State) ->
     {FC, MH, Payload} = Frame,
@@ -58,10 +59,10 @@ handle_cast({rx, Frame}, #{received := Received} = State) ->
     end,
     {noreply, State#{received => [Frame | Received]}};
 handle_cast(_, _) ->
-    error(not_implemented).
+  error(not_implemented).
 
 handle_info(_, _) ->
-    error(not_implemented).
+  error(not_implemented).
 
 terminate(_, _) ->
     ok.
