@@ -25,6 +25,11 @@
     extended_EUI64_from_16mac/1
 ]).
 
+-define(SenderMacAddress, <<16#CAFEDECA00000001:64>>).
+-define(MiddleMacAddress, <<16#CAFEDECA00000002:64>>).
+%-define(ReceiverMacAddress, <<16#CAFEDECA00000003:64>>).
+
+
 all() ->
     [
         pkt_encapsulation_test,
@@ -90,7 +95,7 @@ unc_ipv6(_Config) ->
     Expected = lowpan:get_unc_ipv6(Ipv6Pckt).
 
 iphc_pckt(_Config) ->
-    InlineData = <<12:8, 14627373598910709761:64, 14627373598910709762:64>>,
+    InlineData = <<12:8, ?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, 3:2, 0:1, 2:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
 
@@ -134,8 +139,8 @@ link_local_addr_pckt_comp(_Config) ->
             payload_length = byte_size(Payload),
             next_header = 0,
             hop_limit = 64,
-            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+            source_address = <<16#FE80:16, 0:48, ?SenderMacAddress/binary>>,
+            destination_address = <<16#FE80:16, 0:48, ?MiddleMacAddress/binary>>
         },
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
@@ -156,9 +161,9 @@ link_local_addr_pckt_comp(_Config) ->
         },
 
     InlineData =
-        <<0:8, 14627373598910709761:64,
+        <<0:8, ?SenderMacAddress/binary,
             %lowpan:tuple_list_to_binary(ExpectedCarriedInlineList),
-            14627373598910709762:64>>,
+            ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
@@ -181,8 +186,8 @@ multicast_addr_pckt_comp(_Config) ->
             %UDP
             next_header = 0,
             hop_limit = 1,
-            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-            destination_address = <<16#FF02:16, 0:48, 16#CAFEDECA00000002:64>>
+            source_address = <<16#FE80:16, 0:48, ?SenderMacAddress/binary>>,
+            destination_address = <<16#FF02:16, 0:48, ?MiddleMacAddress/binary>>
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
@@ -207,7 +212,7 @@ multicast_addr_pckt_comp(_Config) ->
 
     Dest = IPv6Header#ipv6_header.destination_address,
     InlineData =
-        <<0:2, 0:2, 2:20, 0:8, 16#CAFEDECA00000001:64,
+        <<0:2, 0:2, 2:20, 0:8, ?SenderMacAddress/binary,
             %list_to_binary(ExpectedCarriedInlineList),
             Dest/binary>>,
 
@@ -233,8 +238,8 @@ global_context_pckt_comp1(_Config) ->
             %UDP
             next_header = 0,
             hop_limit = 255,
-            source_address = <<16#2001:16, 0:48, 16#CAFEDECA00000001:64>>,
-            destination_address = <<16#2001:16, 0:48, 16#CAFEDECA00000002:64>>
+            source_address = <<16#2001:16, 0:48, ?SenderMacAddress/binary>>,
+            destination_address = <<16#2001:16, 0:48, ?MiddleMacAddress/binary>>
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
@@ -279,8 +284,8 @@ udp_nh_pckt_comp(_Config) ->
     Payload = <<"Testing basic IPHC compression with link-local address">>,
 
     PayloadLength = byte_size(Payload),
-    Source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-    Destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>,
+    Source_address = <<16#FE80:16, 0:48, ?SenderMacAddress/binary>>,
+    Destination_address = <<16#FE80:16, 0:48, ?MiddleMacAddress/binary>>,
 
     UdpPckt = <<1025:16, 61617:16, 25:16, 16#f88c:16>>,
 
@@ -300,7 +305,7 @@ udp_nh_pckt_comp(_Config) ->
     P = 2#01,
     ExpectedCarriedInline = #{"SAM" => 14627373598910709761, "DAM" => 14627373598910709762},
 
-    InlineData = <<14627373598910709761:64, 14627373598910709762:64>>,
+    InlineData = <<?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
     UdpInline = <<1025:16, 177:8, 63628:16>>,
 
     io:format("UdpInline ~p~n", [UdpInline]),
@@ -327,8 +332,8 @@ tcp_nh_pckt_comp(_Config) ->
             % TCP
             next_header = 6,
             hop_limit = 64,
-            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+            source_address = <<16#FE80:16, 0:48, ?SenderMacAddress/binary>>,
+            destination_address = <<16#FE80:16, 0:48,?MiddleMacAddress/binary>>
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
@@ -349,7 +354,7 @@ tcp_nh_pckt_comp(_Config) ->
             "NextHeader" => 6
         },
 
-    InlineData = <<6:8, 14627373598910709761:64, 14627373598910709762:64>>,
+    InlineData = <<6:8, ?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
@@ -372,8 +377,8 @@ icmp_nh_pckt_comp(_Config) ->
             %ICMPv6
             next_header = 58,
             hop_limit = 255,
-            source_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000001:64>>,
-            destination_address = <<16#FE80:16, 0:48, 16#CAFEDECA00000002:64>>
+            source_address = <<16#FE80:16, 0:48, ?SenderMacAddress/binary>>,
+            destination_address = <<16#FE80:16, 0:48, ?MiddleMacAddress/binary>>
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
@@ -394,7 +399,7 @@ icmp_nh_pckt_comp(_Config) ->
             "NextHeader" => 58
         },
 
-    InlineData = <<58:8, 14627373598910709761:64, 14627373598910709762:64>>,
+    InlineData = <<58:8, ?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
@@ -481,14 +486,12 @@ compress_header_example2_test(_Config) ->
     ok.
 
 robot_tx(_Config) ->
-    Node1MacAddress = <<16#CAFEDECA00000001:64>>,
-    Node2MacAddress = <<16#CAFEDECA00000002:64>>,
 
     Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
     io:format("PayLen: ~p~n", [bit_size(Payload)]),
 
-    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
-    Node2Address = lowpan:get_default_LL_add(Node2MacAddress),
+    Node1Address = lowpan:get_default_LL_add(?SenderMacAddress),
+    Node2Address = lowpan:get_default_LL_add(?MiddleMacAddress),
     PayloadLength = byte_size(Payload),
 
     Ipv6Pckt =
@@ -512,9 +515,9 @@ robot_tx(_Config) ->
             "FlowLabel" => 2
         },
     InlineData =
-        <<0:2, 56:6, 0:4, 2:20, 12:8, 14627373598910709761:64,
+        <<0:2, 56:6, 0:4, 2:20, 12:8,?SenderMacAddress/binary,
             %lowpan:map_to_binary(ExpectedCarriedInline),
-            14627373598910709762:64>>,
+           ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 

@@ -16,27 +16,20 @@
     msh_pckt_tx/0,
     rx/0
 ]).
--export([rx_off/0]).
-% Benchmarking
--export([tx_benchmark/0]).
--export([rx_benchmark/0]).
+
 % Callbacks
 -export([start/2]).
 -export([stop/1]).
 
--compile([{nowarn_unused_function, [rx_callback/4]}]).
 
 %--- Macros --------------------------------------------------------------------
--define(JAMMING_DATA, <<"JAMMING">>).
--define(DATALENGTH, byte_size(?JAMMING_DATA)).
--define(BENCHMARK_DATA, <<16#F:(111 * 8)>>).
--define(BENCHMARK_DATA_LENGTH, bit_size(?BENCHMARK_DATA)).
--define(PANID, <<16#CAFE:16>>).
--define(SENDER_ADDR, <<16#0001:16>>).
--define(RECEIVER_ADDR, <<16#0002:16>>).
--define(CCA_DURATION, 283).
+
 -define(TX_ANTD, 16450).
 -define(RX_ANTD, 16450).
+-define(SenderMacAddress, <<16#CAFEDECA00000001:64>>).
+-define(MiddleMacAddress, <<16#CAFEDECA00000002:64>>).
+-define(ReceiverMacAddress, <<16#CAFEDECA00000003:64>>).
+
 
 %--- API -----------------------------------------------------------------------
 % Sends/receive only 1 frame
@@ -49,7 +42,8 @@ tx_unc_ipv6() ->
     lowpan_layer:send_unc_datagram(Ipv6Pckt, ?FrameControl, ?MacHeader).
 
 tx_iphc_pckt() ->
-    InlineData = <<12:8, 14627373598910709761:64, 14627373598910709762:64>>,
+
+    InlineData = <<12:8, ?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, 3:2, 12:1, 3:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
 
@@ -172,10 +166,8 @@ tx_with_udp() ->
     lowpan_layer:send_packet(Ipv6Pckt).
 
 msh_pckt_tx() ->
-    Node1MacAddress = <<16#CAFEDECA00000001:64>>,
-    Node3MacAddress = <<16#CAFEDECA00000003:64>>,
-    Node1Address = lowpan:get_default_LL_add(Node1MacAddress),
-    Node3Address = lowpan:get_default_LL_add(Node3MacAddress),
+    Node1Address = lowpan:get_default_LL_add(?SenderMacAddress),
+    Node3Address = lowpan:get_default_LL_add(?ReceiverMacAddress),
 
     IPv6Header =
         #ipv6_header{
@@ -195,77 +187,6 @@ msh_pckt_tx() ->
 rx() ->
     lowpan_layer:frame_reception(), 
     rx().
-
--spec rx_callback(Frame, LinkQuality, Security, Ranging) -> ok when
-    Frame :: frame(),
-    LinkQuality :: integer(),
-    Security :: ieee802154:security(),
-    Ranging :: ieee802154:ranging_informations().
-rx_callback({_FrameControl, _MacHeader, _Payload}, LQI, Security, Ranging) ->
-    io:format("------ Frame report ------~n"),
-    io:format("Link quality: ~p ~n", [LQI]),
-    io:format("Security: ~w~n", [Security]),
-    io:format("Ranging: ~w~n", [Ranging]),
-    io:format("-------------------------~n").
-
-% io:format("Received frame with seqnum: ~w - Payload: ~w ~n",
-%           [_MacHeader#mac_header.seqnum, _Payload]).
-
-rx_off() ->
-    ieee802154:rx_off().
-
-tx(0, Total, Success, Error) ->
-    {Success, Error, Total};
-tx(N, Total, Success, Error) ->
-    Seqnum = Total rem 512,
-    case
-        ieee802154:transmission({
-            #frame_control{pan_id_compr = ?ENABLED, ack_req = ?ENABLED},
-            #mac_header{
-                seqnum = Seqnum,
-                dest_pan = ?PANID,
-                dest_addr = ?RECEIVER_ADDR,
-                src_addr = ?SENDER_ADDR
-            },
-            ?BENCHMARK_DATA
-        })
-    of
-        {ok, _} ->
-            tx(N - 1, Total + 1, Success + 1, Error);
-        _ ->
-            tx(N - 1, Total + 1, Success, Error + 1)
-    end.
-
-tx_benchmark() ->
-    ieee802154:set_pib_attribute(mac_pan_id, ?PANID),
-    ieee802154:set_pib_attribute(mac_short_address, ?SENDER_ADDR),
-    pmod_uwb:set_preamble_timeout(?CCA_DURATION),
-    NbrFrames = 100,
-    % NbrFrames = 1000,
-    Start = os:timestamp(),
-    {Success, Error, Total} = tx(NbrFrames, 0, 0, 0),
-    End = os:timestamp(),
-    Time = timer:now_diff(End, Start) / 1000000,
-    io:format("------------------- Report -------------------~n"),
-    io:format(
-        "Sent ~w frames - Success rate ~.3f (~w/~w) - Error rate ~.3f (~w/~w)~n",
-        [Total, Success / Total, Success, Total, Error / Total, Error, Total]
-    ),
-    io:format(
-        "Data rate ~.1f b/s - ~w b in ~w s ~n",
-        [
-            ?BENCHMARK_DATA_LENGTH * NbrFrames / Time,
-            ?BENCHMARK_DATA_LENGTH * NbrFrames,
-            Time
-        ]
-    ),
-    io:format("----------------------------------------------~n").
-
-rx_benchmark() ->
-    ieee802154:set_pib_attribute(mac_pan_id, ?PANID),
-    ieee802154:set_pib_attribute(mac_short_address, ?RECEIVER_ADDR),
-    % rx().
-    ieee802154:rx_on().
 
 start(_Type, _Args) ->
     {ok, Supervisor} = robot_sup:start_link(),
@@ -291,8 +212,7 @@ start(_Type, _Args) ->
             ok
     end,
 
-    NodeMacAddress = <<16#CAFEDECA00000001:64>>,
-    lowpan_layer:start(#{node_mac_addr => NodeMacAddress, routing_table => ?Node1_routing_table}),
+    lowpan_layer:start(#{node_mac_addr => ?SenderMacAddress, routing_table => ?Node1_routing_table}),
     %tx(),
     ieee802154:rx_on(?ENABLED),
     {ok, Supervisor}.
