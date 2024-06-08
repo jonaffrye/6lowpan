@@ -83,6 +83,7 @@ tx(Frame, FrameControl, MacHeader) ->
 % Get any datagram from ieee802154
 %-------------------------------------------------------------------------------
 frame_reception() ->
+    ieee802154:rx_on(?ENABLED),
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
@@ -260,15 +261,19 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
 % state: frame_rx, in this state, the node activates the rx_on in ieee802154
 %-------------------------------------------------------------------------------
 idle_state(cast, {frame_rx, From}, Data) ->
-    Rx_on = ieee802154:rx_on(),
-    case Rx_on of
-        ok ->
-            io:format("Rx_on activated on node: ~p~n", [node()]),
-            NewData = Data#{caller => From},
-            {next_state, idle_state, NewData};
-        {error, E} ->
-            {next_state, idle_state, Data, [{reply, From, {error, E}}]}
-    end;
+    io:format("~p waiting to receive data... ~n", [node()]),
+    NewData = Data#{caller => From},
+    {next_state, idle_state, NewData};
+
+    % Rx_on = ieee802154:rx_on(),
+    % case ieee802154:rx_on(?ENABLED) of % TODO 
+    %     ok ->
+    %         io:format("Rx_on activated on node: ~p~n", [node()]),
+    %         NewData = Data#{caller => From},
+    %         {next_state, idle_state, NewData};
+    %     {error, E} ->
+    %         {next_state, idle_state, Data, [{reply, From, {error, E}}]}
+    % end;
 
 %-------------------------------------------------------------------------------
 % state: new_frame, in this state, the node process the received frame
