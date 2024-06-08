@@ -786,7 +786,7 @@ check_tag_unicity(Map, Tag) ->
             NewTag = rand:uniform(?MAX_TAG_VALUE),
             check_tag_unicity(Map, NewTag);
         false ->
-            NewMap = maps:put(Tag, undefined, Map),
+            NewMap = maps:put(Tag, valid, Map),
             {Tag, NewMap}
     end.
 

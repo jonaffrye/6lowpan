@@ -127,3 +127,7 @@ The received Ipv6 packet need fragmentation to be transmitted
 19th pckt len: 80 bytes
 20th pckt len: 80 bytes
 21th pckt len: 28 bytes
+
+
+picocom /dev/cu.usbserial-013171 --baud 115200 --echo 
+rebar3 as initiator grisp deploy

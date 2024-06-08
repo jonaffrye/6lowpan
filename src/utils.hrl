@@ -6,6 +6,7 @@
 -define(Node2MacAddress, <<16#CAFEDECA00000002:64>>).
 -define(Node3MacAddress, <<16#CAFEDECA00000003:64>>).
 -define(Payload, <<"Hello world this is an ipv6 packet for testing purpose">>).
+-define(BigPayload, lowpan:generate_chunks()).
 -define(PayloadLength, byte_size(?Payload)).
 -define(Node1Address, lowpan:get_default_LL_add(?Node1MacAddress)).
 -define(Node2Address, lowpan:get_default_LL_add(?Node2MacAddress)).

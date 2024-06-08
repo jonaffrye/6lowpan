@@ -1,0 +1,72 @@
+---------------SENDER---------------------------
+
+1> robot:tx().
+robot:tx().
+New packet transmission 
+Final destination: <<202,254,222,202,0,0,0,2>>
+Compressed packet size: 73 bytes
+Updated TagsMap: #{32821 => undefined}
+No fragmentation needed
+Routing check...
+Direct link found 
+Sending 73 bytes
+no_ack
+
+
+----------------RECEIVER-------------------------
+
+Rx_on activated on node: nonode@nohost
+New frame received
+<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
+  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
+  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
+  103,32,112,117,114,112,111,115,101>>
+Final destination address: <<202,254,222,202,0,0,0,2>>
+Current node address     : <<202,254,222,202,0,0,0,2>>
+Destination node reached, Forwarding to lowpan layer Datagram reassembled 
+
+
+Rx_on activated on node: nonode@nohost
+New frame received
+<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
+  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
+  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
+  103,32,112,117,114,112,111,115,101>>
+Final destination address: <<202,254,222,202,0,0,0,2>>
+Current node address     : <<202,254,222,202,0,0,0,2>>
+Destination node reached, Forwarding to lowpan layerDatagram reassembled 
+
+
+Rx_on activated on node: nonode@nohost
+New frame received
+<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
+  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
+  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
+  103,32,112,117,114,112,111,115,101>>
+Final destination address: <<202,254,222,202,0,0,0,2>>
+Current node address     : <<202,254,222,202,0,0,0,2>>
+Destination node reached, Forwarding to lowpan layerDatagram reassembled 
+
+
+Rx_on activated on node: nonode@nohost
+New frame received
+<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
+  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
+  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
+  103,32,112,117,114,112,111,115,101>>
+Final destination address: <<202,254,222,202,0,0,0,2>>
+Current node address     : <<202,254,222,202,0,0,0,2>>
+Destination node reached, Forwarding to lowpan layerDatagram reassembled 
+
+
+Rx_on activated on node: nonode@nohost
+New frame received
+<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
+  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
+  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
+  103,32,112,117,114,112,111,115,101>>
+Final destination address: <<202,254,222,202,0,0,0,2>>
+Current node address     : <<202,254,222,202,0,0,0,2>>
+Destination node reached, Forwarding to lowpan layerDatagram reassembled 
+Rx_on activated on node: nonode@nohost
+Rx_on activated on node: nonode@nohost

@@ -131,7 +131,7 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, M
 
     case DestAdd of
         CurrNodeMacAdd ->
-            io:format("Destination node reached, Forwarding to lowpan layer"),
+            io:format("Destination node reached, Forwarding to lowpan layer~n"),
             Rest = lowpan:remove_mesh_header(Datagram),
             gen_statem:cast(?MODULE, {new_frame, Rest});
         ?BroadcastAdd ->
@@ -230,7 +230,6 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
     % get unique tag
     Tag = rand:uniform(?MAX_TAG_VALUE),
     {ValidTag, UpdatedTagsMap} = lowpan:check_tag_unicity(TagsMap, Tag),
-    io:format("Updated TagsMap: ~p~n",[UpdatedTagsMap]),
     
     % 3rd - check if fragmentation is needed, if so return fragments list
     {FragReq, Fragments} = lowpan:trigger_fragmentation(CompressedPacket, ValidTag),

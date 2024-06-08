@@ -13,7 +13,6 @@
     discarded_sender/1, discarded_receiver/1
 ]).
 
-
 all() ->
     [{group, test_scenarios}].
 
@@ -37,70 +36,52 @@ groups() ->
         {discard_datagram_tx_rx, [parallel, {repeat, 1}], [discarded_sender, discarded_receiver]}
     ].
 
+%--------------------------
 init_per_group(simple_tx_rx, Config) ->
-    init_per_group_setup("simple_tx_rx", Config);
+    init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config); 
+%--------------------------
 init_per_group(big_payload_tx_rx, Config) ->
-    init_per_group_setup("big_payload_tx_rx", Config);
+    init_per_group_setup(?Node1Address, ?Node3Address, ?BigPayload, Config); 
+%--------------------------
 init_per_group(multicast_src_tx, Config) ->
-    init_per_group_setup("multicast_src_tx", Config);
+    init_per_group_setup(<<16#FF:16, 0:112>>, ?Node2Address, ?Payload, Config);
+%--------------------------
 init_per_group(routing_req_tx_rx, Config) ->
-    init_per_group_setup("routing_req_tx_rx", Config);
+    init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config); 
+%--------------------------
 init_per_group(big_pyld_routing_tx_rx, Config) ->
-    init_per_group_setup("big_pyld_routing_tx_rx", Config);
+    init_per_group_setup(?Node1Address, ?Node3Address, ?BigPayload, Config); 
+%--------------------------
 init_per_group(discard_datagram_tx_rx, Config) ->
-    init_per_group_setup("discard_datagram_tx_rx", Config);
+    init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
+%--------------------------
 init_per_group(_, Config) ->
     Config.
 
-init_per_group_setup(GroupName, Config) ->
+init_per_group_setup(Src, Dst, Payload, Config) ->
     {NetPid, Network} = lowpan_node:boot_network_node(#{loss => true}),
-    io:format("Initializing group: ~p~n", [GroupName]),
-    Payload = <<"Hello world this is an ipv6 packet for testing purpose">>,
-    BigPayload = lowpan:generate_chunks(),
-    NewConfig = packets_setup(Payload, BigPayload, GroupName, Config),
+    io:format("Initializing group ~n"),
+
+    IPv6Header = #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(Payload),
+            next_header = 12,
+            hop_limit = 64,
+            source_address = Src,
+            destination_address = Dst
+        },
+    Packet = ipv6:build_ipv6_packet(IPv6Header, Payload), 
     [
         {net_pid, NetPid},
         {network, Network},
         {node1_mac_address, ?Node1MacAddress},
         {node2_mac_address, ?Node2MacAddress},
-        {node3_mac_address, ?Node3MacAddress}
-        | NewConfig
+        {node3_mac_address, ?Node3MacAddress}, 
+        {ipv6_packet, Packet}
+        | Config
     ].
-
-packets_setup(Payload, BigPayload, Group, Config) ->
-    case Group of
-        "simple_tx_rx" ->
-            Packet = setup_packet(?Node1Address, ?Node2Address, Payload), 
-            [{ipv6_packet, Packet} | Config];
-        "big_payload_tx_rx" ->
-            Packet = setup_packet(?Node1Address, ?Node3Address, BigPayload), 
-            [{ipv6_packet, Packet} | Config];
-        "multicast_src_tx" ->
-            Packet = setup_packet(<<16#FF:16, 0:112>>, ?Node2Address, Payload), 
-            [{ipv6_packet, Packet} | Config];
-        "routing_req_tx_rx" ->
-            Packet = setup_packet(?Node1Address, ?Node2Address, Payload), 
-            [{ipv6_packet, Packet} | Config];
-        "big_pyld_routing_tx_rx" ->
-            Packet = setup_packet(?Node1Address, ?Node3Address, BigPayload),
-            [{ipv6_packet, Packet} | Config];
-        "discard_datagram_tx_rx" ->
-            Config;
-        _ -> Config
-    end.
-
-setup_packet(Src, Dst, Payload) ->
-    IPv6Header = #ipv6_header{
-        version = 6,
-        traffic_class = 0,
-        flow_label = 0,
-        payload_length = byte_size(Payload),
-        next_header = 12,
-        hop_limit = 64,
-        source_address = Src,
-        destination_address = Dst
-    },
-    ipv6:build_ipv6_packet(IPv6Header, Payload).
 
 end_per_group(_Group, Config) ->
     Network = proplists:get_value(network, Config),
@@ -121,91 +102,80 @@ end_per_group(_Group, Config) ->
 
 
 %---------- Tests cases initialization ------------------------------------------------
-init_per_testcase(TestCase, Config) ->
+
+defaut_sender_init_per_testcase(Config, RoutingTable)->
     Network = ?config(network, Config),
-    case TestCase of
-        simple_pckt_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Default_routing_table),
-            [{node1, Node} | Config];
+    Node1MacAddress = ?config(node1_mac_address, Config),
+    Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, RoutingTable),
+    [{node1, Node} | Config].
 
-        simple_pckt_receiver ->
-            Node2MacAddress = ?config(node2_mac_address, Config),
-            Callback = fun lowpan_layer:input_callback/4,
-            Node = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Default_routing_table),
-            [{node2, Node} | Config];
+defaut_receiver2_init_per_testcase(Config, RoutingTable)->
+    Network = ?config(network, Config),
+    Node2MacAddress = ?config(node2_mac_address, Config),
+    Callback = fun lowpan_layer:input_callback/4,
+    Node = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, RoutingTable),
+    [{node2, Node} | Config].
 
-        big_payload_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Default_routing_table),
-            [{node1, Node} | Config];
+defaut_receiver3_init_per_testcase(Config, RoutingTable)->
+    Network = ?config(network, Config),
+    Node3MacAddress = ?config(node3_mac_address, Config),
+    Callback = fun lowpan_layer:input_callback/4,
+    Node = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, RoutingTable),
+    [{node3, Node} | Config].
 
-        big_payload_receiver ->
-            Node3MacAddress = ?config(node3_mac_address, Config),
-            Callback = fun lowpan_layer:input_callback/4,
-            Node = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Default_routing_table),
-            [{node3, Node} | Config];
+%--------------------------
+init_per_testcase(simple_pckt_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
 
-        multicast_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Default_routing_table),
-            [{node1, Node} | Config];
+init_per_testcase(simple_pckt_receiver, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Default_routing_table); 
 
-        multicast_receiver ->
-            Node2MacAddress = ?config(node2_mac_address, Config),
-            Callback = fun lowpan_layer:input_callback/4,
-            Node = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Default_routing_table),
-            [{node2, Node} | Config];
+%--------------------------
 
-        routing_req_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
-            [{node1, Node} | Config];
+init_per_testcase(big_payload_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
 
-        routing_req_receiver2 ->
-            Callback = fun lowpan_layer:input_callback/4,
-            Node2MacAddress = ?config(node2_mac_address, Config),
-            Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
-            [{node2, Node2}| Config];
+init_per_testcase(big_payload_receiver, Config)->
+    defaut_receiver3_init_per_testcase(Config, ?Default_routing_table); 
 
-        routing_req_receiver3 ->
-            Callback = fun lowpan_layer:input_callback/4,
-            Node3MacAddress = ?config(node3_mac_address, Config),
-            Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Node3_routing_table),
+%--------------------------
+init_per_testcase(multicast_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
 
-            [{node3, Node3} | Config];
+init_per_testcase(multicast_receiver, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Default_routing_table); 
 
-        big_pyld_routing_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
-            [{node1, Node} | Config];
+%--------------------------
+init_per_testcase(routing_req_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Node1_routing_table); 
 
-        big_pyld_routing_receiver2 ->
-            Callback = fun lowpan_layer:input_callback/4,
-            Node2MacAddress = ?config(node2_mac_address, Config),
-            Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
-            [{node2, Node2}| Config];
+init_per_testcase(routing_req_receiver2, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Node2_routing_table); 
 
-        big_pyld_routing_receiver3 ->
-            Callback = fun lowpan_layer:input_callback/4,
-            Node3MacAddress = ?config(node3_mac_address, Config),
-            Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Node3_routing_table),
-            [{node3, Node3} | Config];
-        
-        discarded_sender ->
-            Node1MacAddress = ?config(node1_mac_address, Config),
-            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
-            [{node1, Node} | Config];
+init_per_testcase(routing_req_receiver3, Config)->
+    defaut_receiver3_init_per_testcase(Config, ?Node3_routing_table); 
 
-        discarded_receiver ->
-            Callback = fun lowpan_layer:input_callback/4,
-            Node2MacAddress = ?config(node2_mac_address, Config),
-            Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
-            [{node2, Node2} | Config];
+%--------------------------
+init_per_testcase(big_pyld_routing_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Node1_routing_table); 
 
-        _ ->
-            Config
-    end.
+init_per_testcase(big_pyld_routing_receiver2, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Node2_routing_table); 
+
+init_per_testcase(big_pyld_routing_receiver3, Config)->
+    defaut_receiver3_init_per_testcase(Config, ?Node3_routing_table); 
+
+%--------------------------
+init_per_testcase(discarded_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Node1_routing_table); 
+
+init_per_testcase(discarded_receiver, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Node2_routing_table); 
+    
+%--------------------------
+init_per_testcase(_, Config) ->
+            Config.
+  
 
 end_per_testcase(_, _) ->
     ok.

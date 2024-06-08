@@ -212,7 +212,7 @@ start(_Type, _Args) ->
             ok
     end,
 
-    lowpan_layer:start(#{node_mac_addr => ?SenderMacAddress, routing_table => ?Node1_routing_table}),
+    lowpan_layer:start(#{node_mac_addr => ?SenderMacAddress, routing_table => ?Default_routing_table}),
     %tx(),
     ieee802154:rx_on(?ENABLED),
     {ok, Supervisor}.
