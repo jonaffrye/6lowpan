@@ -3,41 +3,23 @@
 -include("lowpan.hrl").
 
 -export([
-    pkt_encapsulation/2,
-    fragment_ipv6_packet/2,
-    fragment_ipv6_packet/1,
-    reassemble_datagram/2,
-    reassemble_datagrams/1,
-    reassemble/2,create_iphc_pckt/2,
-    get_ipv6_pkt/2,
-    datagram_info/1,
-    compress_ipv6_header/1,
-    build_datagram_pckt/2,
-    build_firstFrag_pckt/5,
-    get_ipv6_pckt_info/1,
-    get_ipv6_payload/1,
-    trigger_fragmentation/1,
-    decompress_ipv6_header/2,
-    get_default_LL_add/1,
-    encode_integer/1,
-    tuple_to_bin/1,
-    build_frag_header/1,
-    get_next_hop/3,
-    print_as_binary/1,
-    hex_to_binary/1,
-    complete_with_padding/1,
-    generate_chunks/0,
-    build_mesh_header/1,
-    get_mesh_info/1,
-    contains_mesh_header/1,
-    build_first_frag_header/1,
-    get_unc_ipv6/1,
-    get_EUI64_mac_addr/1,generate_EUI64_mac_addr/1, get_EUI64_from_48bit_mac/1,
-    get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,generate_LL_addr/1,
-    create_new_mesh_header/2,
-    create_new_mesh_datagram/3,
-    check_duplicate_frag/5, remove_mesh_header/1, convert_addr_to_bin/1
+    pkt_encapsulation/2, fragment_ipv6_packet/2,
+    reassemble_datagram/2, reassemble_datagrams/1, reassemble/2,
+    create_iphc_pckt/2, get_ipv6_pkt/2, datagram_info/1,
+    compress_ipv6_header/1, build_datagram_pckt/2, build_firstFrag_pckt/5,
+    get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
+    decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1,
+    tuple_to_bin/1, build_frag_header/1, get_next_hop/3, print_as_binary/1,
+    hex_to_binary/1, complete_with_padding/1, generate_chunks/0,
+    build_mesh_header/1, get_mesh_info/1, contains_mesh_header/1,
+    build_first_frag_header/1, get_unc_ipv6/1, get_EUI64_mac_addr/1,
+    generate_EUI64_mac_addr/1, get_EUI64_from_48bit_mac/1,
+    get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,
+    generate_LL_addr/1, create_new_mesh_header/2, create_new_mesh_datagram/3,
+    check_duplicate_frag/5, remove_mesh_header/1, convert_addr_to_bin/1, 
+    check_tag_unicity/2
 ]).
+
 
 %-------------------------------------------------------------------------------
 % return pre-built Ipv6 packet
@@ -718,21 +700,21 @@ build_datagram_pckt(DtgmHeader, Payload) ->
 % check if a packet needs to be compressed or not
 % returns a list of fragments if yes, the orginal packet if not
 %-------------------------------------------------------------------------------
-trigger_fragmentation(CompPckt) when byte_size(CompPckt) =< ?MAX_FRAG_SIZE ->
+trigger_fragmentation(CompPckt, DatagramTag) when byte_size(CompPckt) =< ?MAX_FRAG_SIZE ->
     PcktLengt = byte_size(CompPckt),
 
     ValidLength = PcktLengt =< 127,
     case ValidLength of
         false ->
             io:format("The received Ipv6 packet need fragmentation to be transmitted~n"),
-            Fragments = lowpan:fragment_ipv6_packet(CompPckt),
+            Fragments = lowpan:fragment_ipv6_packet(CompPckt, DatagramTag),
             {true, Fragments};
         true ->
             io:format("No fragmentation needed~n"),
             {false, CompPckt}
     end; 
 
-trigger_fragmentation(_CompPckt) ->
+trigger_fragmentation(_CompPckt, _DatagramTag) ->
     error_frag_size.
 
 
@@ -742,14 +724,11 @@ trigger_fragmentation(_CompPckt) ->
 % [{FragHeader1, Fragment1}, ..., {FragHeaderN, FragmentN}]
 % @end
 %-------------------------------------------------------------------------------
-fragment_ipv6_packet(CompIpv6Pckt, PacketLen) when is_binary(CompIpv6Pckt) ->
-    % TODO Check unicity
-    DatagramTag = rand:uniform(65536),
-    frag_process(CompIpv6Pckt, DatagramTag, PacketLen, 0, []).
+% fragment_ipv6_packet(CompIpv6Pckt, PacketLen) when is_binary(CompIpv6Pckt) ->
+%     DatagramTag = rand:uniform(65536),
+%     frag_process(CompIpv6Pckt, DatagramTag, PacketLen, 0, []);
 
-fragment_ipv6_packet(CompIpv6Pckt) when is_binary(CompIpv6Pckt) ->
-    % TODO Check unicity
-    DatagramTag = rand:uniform(65536),
+fragment_ipv6_packet(CompIpv6Pckt, DatagramTag) when is_binary(CompIpv6Pckt) ->
     Size = byte_size(CompIpv6Pckt),
     frag_process(CompIpv6Pckt, DatagramTag, Size, 0, []).
  
@@ -797,6 +776,19 @@ frag_process(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
 
     frag_process(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc]).
 
+%-------------------------------------------------------------------------------
+% Check if tag exist in the map, if so generate a new one and update the tag map
+%-------------------------------------------------------------------------------
+check_tag_unicity(Map, Tag) ->
+    Exist = maps:is_key(Tag, Map),
+    case Exist of
+        true ->
+            NewTag = rand:uniform(?MAX_TAG_VALUE),
+            check_tag_unicity(Map, NewTag);
+        false ->
+            NewMap = maps:put(Tag, undefined, Map),
+            {Tag, NewMap}
+    end.
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------

@@ -4,28 +4,15 @@
 -include("../src/utils.hrl").
 
 -export([
-    all/0,
-    groups/0,
-    init_per_suite/1,
-    end_per_suite/1,
-    init_per_group/2,
-    end_per_group/2,
-    init_per_testcase/2,
-    end_per_testcase/2,
-
-    simple_pckt_sender/1,
-    simple_pckt_receiver/1,
-    big_payload_sender/1,
-    big_payload_receiver/1,
-    multicast_sender/1,
-    multicast_receiver/1,
-    routing_req_sender/1,
-    routing_req_receiver2/1,
-    routing_req_receiver3/1,
-    big_pyld_routing_sender/1,
-    big_pyld_routing_receiver2/1,
-    big_pyld_routing_receiver3/1
+    all/0, groups/0, init_per_suite/1, end_per_suite/1, init_per_group/2,
+    end_per_group/2, init_per_testcase/2, end_per_testcase/2,
+    simple_pckt_sender/1, simple_pckt_receiver/1, big_payload_sender/1,
+    big_payload_receiver/1, multicast_sender/1, multicast_receiver/1,
+    routing_req_sender/1, routing_req_receiver2/1, routing_req_receiver3/1,
+    big_pyld_routing_sender/1, big_pyld_routing_receiver2/1, big_pyld_routing_receiver3/1, 
+    discarded_sender/1, discarded_receiver/1
 ]).
+
 
 all() ->
     [{group, test_scenarios}].
@@ -39,13 +26,15 @@ groups() ->
             {group, big_payload_tx_rx},
             {group, multicast_src_tx},
             {group, routing_req_tx_rx},
-            {group, big_pyld_routing_tx_rx}
+            {group, big_pyld_routing_tx_rx}, 
+            {group, discard_datagram_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
         {multicast_src_tx, [parallel, {repeat, 1}], [multicast_sender, multicast_receiver]},
         {routing_req_tx_rx, [parallel, {repeat, 1}], [routing_req_sender, routing_req_receiver3, routing_req_receiver2]},
-        {big_pyld_routing_tx_rx, [parallel, {repeat, 1}], [big_pyld_routing_sender, big_pyld_routing_receiver2, big_pyld_routing_receiver3]}
+        {big_pyld_routing_tx_rx, [parallel, {repeat, 1}], [big_pyld_routing_sender, big_pyld_routing_receiver2, big_pyld_routing_receiver3]}, 
+        {discard_datagram_tx_rx, [parallel, {repeat, 1}], [discarded_sender, discarded_receiver]}
     ].
 
 init_per_group(simple_tx_rx, Config) ->
@@ -58,6 +47,8 @@ init_per_group(routing_req_tx_rx, Config) ->
     init_per_group_setup("routing_req_tx_rx", Config);
 init_per_group(big_pyld_routing_tx_rx, Config) ->
     init_per_group_setup("big_pyld_routing_tx_rx", Config);
+init_per_group(discard_datagram_tx_rx, Config) ->
+    init_per_group_setup("discard_datagram_tx_rx", Config);
 init_per_group(_, Config) ->
     Config.
 
@@ -93,6 +84,8 @@ packets_setup(Payload, BigPayload, Group, Config) ->
         "big_pyld_routing_tx_rx" ->
             Packet = setup_packet(?Node1Address, ?Node3Address, BigPayload),
             [{ipv6_packet, Packet} | Config];
+        "discard_datagram_tx_rx" ->
+            Config;
         _ -> Config
     end.
 
@@ -173,7 +166,6 @@ init_per_testcase(TestCase, Config) ->
             Callback = fun lowpan_layer:input_callback/4,
             Node2MacAddress = ?config(node2_mac_address, Config),
             Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
-            
             [{node2, Node2}| Config];
 
         routing_req_receiver3 ->
@@ -192,15 +184,24 @@ init_per_testcase(TestCase, Config) ->
             Callback = fun lowpan_layer:input_callback/4,
             Node2MacAddress = ?config(node2_mac_address, Config),
             Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
-            
             [{node2, Node2}| Config];
 
         big_pyld_routing_receiver3 ->
             Callback = fun lowpan_layer:input_callback/4,
             Node3MacAddress = ?config(node3_mac_address, Config),
             Node3 = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, ?Node3_routing_table),
-
             [{node3, Node3} | Config];
+        
+        discarded_sender ->
+            Node1MacAddress = ?config(node1_mac_address, Config),
+            Node = lowpan_node:boot_lowpan_node(node1, Network, Node1MacAddress, ?Node1_routing_table),
+            [{node1, Node} | Config];
+
+        discarded_receiver ->
+            Callback = fun lowpan_layer:input_callback/4,
+            Node2MacAddress = ?config(node2_mac_address, Config),
+            Node2 = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, ?Node2_routing_table),
+            [{node2, Node2} | Config];
 
         _ ->
             Config
@@ -346,9 +347,9 @@ big_pyld_routing_sender(Config) ->
 %-------------------------------------------------------------------------------
 
 big_pyld_routing_receiver2(Config) ->
-    {_, Node2}  = ?config(node2, Config),
-    erpc:call(Node2, lowpan_layer, frame_reception, []).
-    %lowpan_node:stop_lowpan_node(Node2, Pid2).
+    {Pid2, Node2}  = ?config(node2, Config),
+    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 big_pyld_routing_receiver3(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
@@ -369,3 +370,42 @@ big_pyld_routing_receiver3(Config) ->
     lowpan_node:stop_lowpan_node(Node3, Pid3).
 
 
+%-------------------------------------------------------------------------------
+% Send a datagram with 1 as value for hop left to node 2
+%-------------------------------------------------------------------------------
+discarded_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+    Node1MacAddress = ?config(node1_mac_address, Config),
+    Node2MacAddress = ?config(node2_mac_address, Config),
+    Node3MacAddress = ?config(node3_mac_address, Config),
+
+    MeshHeader =
+        #mesh_header{
+            v_bit = 0,
+            f_bit = 0,
+            hops_left = 1,
+            originator_address = Node1MacAddress,
+            final_destination_address = Node3MacAddress
+        },
+
+    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+
+    Datagram = <<BinMeshHeader/binary, ?Payload/bitstring>>, % meshHeader + Data
+
+    FC = #frame_control{ack_req = ?ENABLED, 
+                        frame_type = ?FTYPE_DATA,
+                        src_addr_mode = ?EXTENDED,
+                        dest_addr_mode = ?EXTENDED},
+    MacHdr = #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},
+
+    ok = erpc:call(Node1, lowpan_layer, tx, [Datagram, FC, MacHdr]),
+    ct:pal("Big routed packet sent successfully from node1 to node3"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+%-------------------------------------------------------------------------------
+% Discard datagram received from node 1
+%-------------------------------------------------------------------------------
+discarded_receiver(Config) ->
+    {Pid2, Node2}  = ?config(node2, Config),
+    dtg_discarded = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node2, Pid2).

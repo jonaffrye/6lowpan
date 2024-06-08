@@ -4,26 +4,16 @@
 
 -export([all/0, init_per_testcase/1, end_per_testcase/1]).
 -export([
-    pkt_encapsulation_test/1,
-    fragmentation_test/1,
-    datagram_info_test/1,
-    reassemble_fragments_list_test/1,
-    reassemble_single_fragments_test/1,
-    reassemble_full_ipv6_pckt_test/1,
-    compress_header_example1_test/1,
-    compress_header_example2_test/1,
-    link_local_addr_pckt_comp/1,
-    multicast_addr_pckt_comp/1,
-    global_context_pckt_comp1/1,
-    udp_nh_pckt_comp/1,
-    tcp_nh_pckt_comp/1,
-    icmp_nh_pckt_comp/1,
-    robot_tx/1,
-    unc_ipv6/1,
-    iphc_pckt/1,
+    pkt_encapsulation_test/1, fragmentation_test/1, datagram_info_test/1,
+    reassemble_fragments_list_test/1, reassemble_single_fragments_test/1,
+    reassemble_full_ipv6_pckt_test/1, compress_header_example1_test/1,
+    compress_header_example2_test/1, link_local_addr_pckt_comp/1,
+    multicast_addr_pckt_comp/1, global_context_pckt_comp1/1, udp_nh_pckt_comp/1,
+    tcp_nh_pckt_comp/1, icmp_nh_pckt_comp/1, robot_tx/1, unc_ipv6/1, iphc_pckt/1,
     msh_pckt/1, extended_EUI64_from_64mac/1, extended_EUI64_from_48mac/1,
-    extended_EUI64_from_16mac/1
+    extended_EUI64_from_16mac/1, check_tag_unicity/1
 ]).
+
 
 -define(SenderMacAddress, <<16#CAFEDECA00000001:64>>).
 -define(MiddleMacAddress, <<16#CAFEDECA00000002:64>>).
@@ -50,7 +40,7 @@ all() ->
         unc_ipv6,
         iphc_pckt,
         msh_pckt, extended_EUI64_from_64mac,extended_EUI64_from_48mac,
-        extended_EUI64_from_16mac
+        extended_EUI64_from_16mac, check_tag_unicity
     ].
 
 init_per_testcase(Config) ->
@@ -711,3 +701,13 @@ extended_EUI64_from_16mac(_Config)->
     Result = lowpan:get_EUI64_from_short_mac(MacAddr), 
     io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
     Result =:= Expected. 
+
+check_tag_unicity(_Config) ->
+    TagMap = #{},
+    Tag1 = 10,
+    {_, NewTagMap} = lowpan:check_tag_unicity(TagMap, Tag1),
+    Tag2 = 10,
+    {ValidTag2, FinalMap} = lowpan:check_tag_unicity(NewTagMap, Tag2),
+    io:format("TagMap: ~p~n", [FinalMap]),
+    ValidTag2 =/= Tag2.
+    

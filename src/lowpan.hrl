@@ -66,7 +66,7 @@
 -define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
-
+-define(MAX_TAG_VALUE, 65535).
 
 %--------------------------------------------------- Header Compression -----------------------------------------------------
 -record(ipv6_header,
@@ -125,7 +125,7 @@
          hops_left,
          originator_address,
          final_destination_address}).
-        
+
 -record(meshInfo,
         {version = 6,
          v_bit,
