@@ -425,7 +425,7 @@ discard_datagram(_, Data = #{caller := From})->
 
 
 %-------------------------------------------------------------------------------
-% Internal function to process the simple_tx
+% Forward datagram to next hop
 %-------------------------------------------------------------------------------
 forward_datagram(Frame, FrameControl, MacHeader, Data) ->
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
