@@ -241,7 +241,7 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
         lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress),
     
     % 5th - send to next hop
-    FC = #frame_control{ack_req = ?ENABLED, 
+    FC = #frame_control{%ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
@@ -345,7 +345,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    %timer:sleep(10),
+    timer:sleep(10),
     case ieee802154:transmission({FC, MH, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),
