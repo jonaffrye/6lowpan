@@ -84,6 +84,7 @@ tx(Frame, FrameControl, MacHeader) ->
 %-------------------------------------------------------------------------------
 frame_reception() ->
     %ieee802154:rx_on(?ENABLED),
+    ieee802154:rx_on(),  
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
@@ -319,7 +320,7 @@ idle_state({call, From}, {reassembly_timeout}, Data) ->
 %-------------------------------------------------------------------------------
 % Transmits each fragment in the FragmentList to ieee802154
 %-------------------------------------------------------------------------------
-% No frag needed => send CompressedPacket
+% No frag needed => send CompressedPacket  
 send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC) ->
     Pckt = case RouteExist of
                 true ->
@@ -345,7 +346,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    %timer:sleep(10),
+    timer:sleep(10),
     case ieee802154:transmission({FC, MH, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),
