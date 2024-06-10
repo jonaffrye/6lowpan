@@ -10,7 +10,7 @@
     get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
     decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1,
     tuple_to_bin/1, build_frag_header/1, get_next_hop/3, print_as_binary/1,
-    hex_to_binary/1, complete_with_padding/1, generate_chunks/0,
+    hex_to_binary/1, complete_with_padding/1, generate_chunks/0,generate_chunks/1,
     build_mesh_header/1, get_mesh_info/1, contains_mesh_header/1,
     build_first_frag_header/1, get_unc_ipv6/1, get_EUI64_mac_addr/1,
     generate_EUI64_mac_addr/1, get_EUI64_from_48bit_mac/1,
@@ -697,7 +697,7 @@ build_datagram_pckt(DtgmHeader, Payload) ->
 
 
 %-------------------------------------------------------------------------------
-% check if a packet needs to be compressed or not
+% check if a packet needs to be fragmented or not and has a valid size 
 % returns a list of fragments if yes, the orginal packet if not
 %-------------------------------------------------------------------------------
 trigger_fragmentation(CompPckt, DatagramTag) when byte_size(CompPckt) =< ?MAX_FRAG_SIZE ->
@@ -715,7 +715,7 @@ trigger_fragmentation(CompPckt, DatagramTag) when byte_size(CompPckt) =< ?MAX_FR
     end; 
 
 trigger_fragmentation(_CompPckt, _DatagramTag) ->
-    error_frag_size.
+    {size_err, error_frag_size}.
 
 
 %-------------------------------------------------------------------------------
@@ -1622,6 +1622,14 @@ complete_with_padding(Packet) ->
 
 generate_chunks() ->
     NumChunks = 20,
+    ChunkSize = 75,
+    Chunks =
+        lists:map(fun(N) -> generate_chunk(N, ChunkSize) end, lists:seq(NumChunks, 1, -1)),
+    Result = lists:foldl(fun(A, B) -> <<A/binary, B/binary>> end, <<>>, Chunks),
+    Result.
+
+generate_chunks(Size) ->
+    NumChunks = Size,
     ChunkSize = 75,
     Chunks =
         lists:map(fun(N) -> generate_chunk(N, ChunkSize) end, lists:seq(NumChunks, 1, -1)),

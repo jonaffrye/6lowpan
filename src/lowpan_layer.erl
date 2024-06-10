@@ -83,7 +83,7 @@ tx(Frame, FrameControl, MacHeader) ->
 % Get any datagram from ieee802154
 %-------------------------------------------------------------------------------
 frame_reception() ->
-    ieee802154:rx_on(?ENABLED),
+    %ieee802154:rx_on(?ENABLED),
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
@@ -248,12 +248,13 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
     case FragReq of
         true ->
             Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC),
-                
             {next_state, idle_state, Data#{fragments => Fragments, fragment_tags => UpdatedTagsMap}, [{reply, From, Response}]};
         false ->
             Response = send_fragment(RouteExist, Fragments, MeshedHdrBin, MH, FC),
-                
-            {next_state, idle_state, Data#{fragments => Fragments, fragment_tags => UpdatedTagsMap}, [{reply, From, Response}]}
+            {next_state, idle_state, Data#{fragments => Fragments, fragment_tags => UpdatedTagsMap}, [{reply, From, Response}]}; 
+        size_err -> 
+            io:format("The datagram size exceed the authorized length~n"),
+            {next_state, idle_state, Data, [{reply, From, error_frag_size}]}
     end;
 
 
@@ -266,7 +267,7 @@ idle_state(cast, {frame_rx, From}, Data) ->
     {next_state, idle_state, NewData};
 
     % Rx_on = ieee802154:rx_on(),
-    % case ieee802154:rx_on(?ENABLED) of % TODO 
+    % case Rx_on of % TODO 
     %     ok ->
     %         io:format("Rx_on activated on node: ~p~n", [node()]),
     %         NewData = Data#{caller => From},
@@ -344,7 +345,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    timer:sleep(10),
+    %timer:sleep(10),
     case ieee802154:transmission({FC, MH, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),

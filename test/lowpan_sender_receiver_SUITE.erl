@@ -10,7 +10,7 @@
     big_payload_receiver/1, multicast_sender/1, multicast_receiver/1,
     routing_req_sender/1, routing_req_receiver2/1, routing_req_receiver3/1,
     big_pyld_routing_sender/1, big_pyld_routing_receiver2/1, big_pyld_routing_receiver3/1, 
-    discarded_sender/1, discarded_receiver/1
+    discarded_sender/1, discarded_receiver/1, unexpected_dtg_size_sender/1
 ]).
 
 all() ->
@@ -26,14 +26,16 @@ groups() ->
             {group, multicast_src_tx},
             {group, routing_req_tx_rx},
             {group, big_pyld_routing_tx_rx}, 
-            {group, discard_datagram_tx_rx}
+            {group, discard_datagram_tx_rx}, 
+            {group, unexpected_dtg_size_tx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
         {multicast_src_tx, [parallel, {repeat, 1}], [multicast_sender, multicast_receiver]},
         {routing_req_tx_rx, [parallel, {repeat, 1}], [routing_req_sender, routing_req_receiver3, routing_req_receiver2]},
         {big_pyld_routing_tx_rx, [parallel, {repeat, 1}], [big_pyld_routing_sender, big_pyld_routing_receiver2, big_pyld_routing_receiver3]}, 
-        {discard_datagram_tx_rx, [parallel, {repeat, 1}], [discarded_sender, discarded_receiver]}
+        {discard_datagram_tx_rx, [parallel, {repeat, 1}], [discarded_sender, discarded_receiver]}, 
+        {unexpected_dtg_size_tx, [sequential], [unexpected_dtg_size_sender]}
     ].
 
 %--------------------------
@@ -54,6 +56,10 @@ init_per_group(big_pyld_routing_tx_rx, Config) ->
 %--------------------------
 init_per_group(discard_datagram_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
+%--------------------------
+init_per_group(unexpected_dtg_size_tx, Config) ->
+    Paylaod = lowpan:generate_chunks(120),
+    init_per_group_setup(?Node1Address, ?Node2Address, Paylaod, Config);
 %--------------------------
 init_per_group(_, Config) ->
     Config.
@@ -131,7 +137,6 @@ init_per_testcase(simple_pckt_receiver, Config)->
     defaut_receiver2_init_per_testcase(Config, ?Default_routing_table); 
 
 %--------------------------
-
 init_per_testcase(big_payload_sender, Config)->
     defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
 
@@ -172,6 +177,10 @@ init_per_testcase(discarded_sender, Config)->
 init_per_testcase(discarded_receiver, Config)->
     defaut_receiver2_init_per_testcase(Config, ?Node2_routing_table); 
     
+%--------------------------
+init_per_testcase(unexpected_dtg_size_sender, Config)->
+    defaut_sender_init_per_testcase(Config, ?Node1_routing_table); 
+
 %--------------------------
 init_per_testcase(_, Config) ->
             Config.
@@ -379,3 +388,12 @@ discarded_receiver(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
     dtg_discarded = erpc:call(Node2, lowpan_layer, frame_reception, []),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+%-------------------------------------------------------------------------------
+% Check if error is return when datagram size is unexpected 
+%-------------------------------------------------------------------------------
+unexpected_dtg_size_sender(Config) ->
+    {Pid1, Node1}  = ?config(node1, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+    error_frag_size = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
