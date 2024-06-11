@@ -1520,10 +1520,10 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress) ->
 %-------------------------------------------------------------------------------
 generate_EUI64_mac_addr(MacAddress)->
     case byte_size(MacAddress) of
-        ?SHORT_ADD_LEN -> 
+        ?SHORT_ADDR_LEN -> 
             io:format("Convert short 16bit addr~n"),
             get_EUI64_from_short_mac(MacAddress);
-        ?EXTENDED_ADD_LEN ->
+        ?EXTENDED_ADDR_LEN ->
             io:format("Convert extended 64bit addr~n"), 
             get_EUI64_from_extended_mac(MacAddress)
             

@@ -205,16 +205,16 @@ start(_Type, _Args) ->
         _ ->
             ok
     end,
+
     case application:get_env(robot, mac_addr) of
         {ok, MacAddr} ->
-            ieee802154:set_pib_attribute(mac_short_address, MacAddr);
+            ieee802154:set_pib_attribute(mac_extended_address, MacAddr);
         _ ->
             ok
     end,
-
+    
+    ieee802154:rx_on(),
     lowpan_layer:start(#{node_mac_addr => ?Node2MacAddress, routing_table => ?Default_routing_table}),
-    %tx(),
-    ieee802154:rx_on(?ENABLED),
     {ok, Supervisor}.
 
 % @private

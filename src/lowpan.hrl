@@ -111,8 +111,8 @@
           2 => <<16#2001:16, 0:48>>, % global prefix 2
           3 => <<16#2002:16, 0:48>>}). % global prefix 3
                                                                                                                                                                                                                                                                                                                                                           % add more context prefix
--define(SHORT_ADD_LEN, 2).
--define(EXTENDED_ADD_LEN, 8).
+-define(SHORT_ADDR_LEN, 2).
+-define(EXTENDED_ADDR_LEN, 8).
 
 %---------------------------------------------------- Routing ----------------------------------------------------------------
 -define(BroadcastAdd, <<"ÿÿ">>).

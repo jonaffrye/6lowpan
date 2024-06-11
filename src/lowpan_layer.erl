@@ -83,8 +83,6 @@ tx(Frame, FrameControl, MacHeader) ->
 % Get any datagram from ieee802154
 %-------------------------------------------------------------------------------
 frame_reception() ->
-    %ieee802154:rx_on(?ENABLED),
-    ieee802154:rx_on(),  
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
@@ -263,11 +261,12 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
 % state: frame_rx, in this state, the node activates the rx_on in ieee802154
 %-------------------------------------------------------------------------------
 idle_state(cast, {frame_rx, From}, Data) ->
+    % ieee802154:rx_on(),  
     io:format("~p waiting to receive data... ~n", [node()]),
     NewData = Data#{caller => From},
     {next_state, idle_state, NewData};
 
-    % Rx_on = ieee802154:rx_on(),
+   
     % case Rx_on of % TODO 
     %     ok ->
     %         io:format("Rx_on activated on node: ~p~n", [node()]),
@@ -346,7 +345,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    timer:sleep(10),
+    %timer:sleep(10),
     case ieee802154:transmission({FC, MH, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),
