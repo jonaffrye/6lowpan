@@ -86,6 +86,7 @@ frame_reception() ->
     gen_statem:cast(?MODULE, {frame_rx, self()}),
     receive
         {reassembled_packet, ReassembledPacket} ->
+            io:format("Datagram reassembled ~n"),
             ReassembledPacket; 
         {dtg_discarded} -> 
             io:format("Datagram successfully discarded ~n"),
@@ -283,7 +284,6 @@ idle_state(cast, {new_frame, Datagram}, Data = #{datagram_map := DatagramMap, ca
     <<Type:3, _/bitstring>> = Datagram,
     case Type of
         ?IPHC_DHTYPE -> % compressed datagram
-            io:format("Datagram reassembled ~n"),
             From ! {reassembled_packet, Datagram},
             {next_state, idle_state, Data};
         _ -> % fragmented datagram
