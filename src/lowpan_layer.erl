@@ -17,7 +17,6 @@ init(Params) ->
     set_nodeData_value(currNodeMacAdd, CurrNodeMacAdd),
 
     Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => #{}, fragment_tags=>#{}},
-
     {ok, idle_state, Data}.
 
 -spec start_link(Params :: #{}) -> {ok, pid()} | {error, any()}.
@@ -27,19 +26,22 @@ start_link(Params) ->
 % Starts statem
 start(Params) ->
     gen_statem:start({local, ?MODULE}, ?MODULE, Params, []),
-    io:format("~p: Stack successfully launched~n", [node()]),
+    io:format("~p: 6lowpan layer successfully launched~n", [node()]),
+
+    CurrNodeMacAdd = maps:get(node_mac_addr, Params),
+    io:format("Current node mac address: ~p~n", [CurrNodeMacAdd]),
+    %ieee802154_setup(CurrNodeMacAdd), % comment when testing
 
     RoutingTable  = maps:get(routing_table, Params),
 
-    case erpc:call(node(), routing_table, start, [RoutingTable]) of
-        {ok, _} ->
+    case routing_table:start(RoutingTable) of
+        {ok, _Pid} ->
             io:format("~p: Routing table server successfully launched~n", [node()]);
         {error, Reason} ->
             io:format("~p: Failed to start routing table server: ~p~n", [node(), Reason]),
             exit({error, Reason})
     end, 
-    CurrNodeMacAdd = maps:get(node_mac_addr, Params),
-    io:format("Current node mac address: ~p~n", [CurrNodeMacAdd]),
+
     io:format("----------------------------------------------------------------------------------------~n").
 
 stop_link() ->
@@ -262,20 +264,11 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
 % state: frame_rx, in this state, the node activates the rx_on in ieee802154
 %-------------------------------------------------------------------------------
 idle_state(cast, {frame_rx, From}, Data) ->
-    % ieee802154:rx_on(),  
+    ieee802154:rx_on(),  % uncomment when testing
     io:format("~p waiting to receive data... ~n", [node()]),
     NewData = Data#{caller => From},
     {next_state, idle_state, NewData};
 
-   
-    % case Rx_on of % TODO 
-    %     ok ->
-    %         io:format("Rx_on activated on node: ~p~n", [node()]),
-    %         NewData = Data#{caller => From},
-    %         {next_state, idle_state, NewData};
-    %     {error, E} ->
-    %         {next_state, idle_state, Data, [{reply, From, {error, E}}]}
-    % end;
 
 %-------------------------------------------------------------------------------
 % state: new_frame, in this state, the node process the received frame
@@ -345,7 +338,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    %timer:sleep(10),
+    timer:sleep(10),
     case ieee802154:transmission({FC, MH, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),
@@ -396,7 +389,7 @@ put_and_reassemble(Datagram, Map, _) ->
             gen_statem:cast(?MODULE, {collected, Tag, UpdatedMap});
         false ->
             io:format("Uncomplete datagram ~n"),
-            io:format("------------------------------------------------------")
+            io:format("------------------------------------------------------~n")
     end,
     UpdatedMap.
 
@@ -462,6 +455,32 @@ get_nodeData_value(Key) ->
         [{_, Value}] ->
             Value
     end.
+
+
+%-------------------------------------------------------------------------------
+% Setup ieee802154 layer
+%-------------------------------------------------------------------------------
+ieee802154_setup(MacAddr)->
+    ieee802154:start(#ieee_parameters{
+        duty_cycle = duty_cycle_non_beacon,
+        input_callback = fun lowpan_layer:input_callback/4
+    }),
+
+    io:format("~p IEEE 802.15.4 layer successfully launched ~n",[node()]),
+
+    case application:get_env(robot, pan_id) of
+        {ok, PanId} ->
+            ieee802154:set_pib_attribute(mac_pan_id, PanId);
+        _ ->
+            ok
+    end,
+
+    case byte_size(MacAddr) of 
+        ?EXTENDED_ADDR_LEN -> ieee802154:set_pib_attribute(mac_extended_address, MacAddr); 
+        ?SHORT_ADDR_LEN -> ieee802154:set_pib_attribute(mac_short_address, MacAddr)
+    end, 
+
+    ieee802154:rx_on().
 
 callback_mode() ->
     [state_functions].

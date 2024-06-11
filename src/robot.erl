@@ -17,7 +17,6 @@
     rx/0
 ]).
 
-% Callbacks
 -export([start/2]).
 -export([stop/1]).
 
@@ -26,14 +25,10 @@
 
 -define(TX_ANTD, 16450).
 -define(RX_ANTD, 16450).
--define(SenderMacAddress, <<16#CAFEDECA00000001:64>>).
--define(MiddleMacAddress, <<16#CAFEDECA00000002:64>>).
--define(ReceiverMacAddress, <<16#CAFEDECA00000003:64>>).
 
-
-%--- API -----------------------------------------------------------------------
-% Sends/receive only 1 frame
-
+%-------------------------------------------------------------------------------
+% Uncompressed ipv6 packet format verification
+%-------------------------------------------------------------------------------
 tx_unc_ipv6() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     io:format("Frame ~p~n", [Ipv6Pckt]),
@@ -41,9 +36,11 @@ tx_unc_ipv6() ->
 
     lowpan_layer:send_unc_datagram(Ipv6Pckt, ?FrameControl, ?MacHeader).
 
+%-------------------------------------------------------------------------------
+% compressed header packet format verification
+%-------------------------------------------------------------------------------
 tx_iphc_pckt() ->
-
-    InlineData = <<12:8, ?SenderMacAddress/binary, ?MiddleMacAddress/binary>>,
+    InlineData = <<12:8, ?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, 3:2, 12:1, 3:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
 
@@ -54,6 +51,9 @@ tx_iphc_pckt() ->
 
     lowpan_layer:tx(IPHC, ?FrameControl, ?MacHeader).
 
+%-------------------------------------------------------------------------------
+% Meshed and compressed header packet format verification
+%-------------------------------------------------------------------------------
 tx_msh_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
@@ -73,6 +73,9 @@ tx_msh_iphc_pckt() ->
 
     lowpan_layer:tx(Datagram, ?FrameControl, ?MacHeader).
 
+%-------------------------------------------------------------------------------
+% Fragmented and compressed packet format verification
+%-------------------------------------------------------------------------------
 tx_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
@@ -86,6 +89,9 @@ tx_frag_iphc_pckt() ->
 
     lowpan_layer:tx(Frag, ?FrameControl, ?MacHeader).
 
+%-------------------------------------------------------------------------------
+% Meshed, fragmented and compressed packet format verification
+%-------------------------------------------------------------------------------
 tx_msh_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
@@ -116,10 +122,16 @@ tx_msh_frag_iphc_pckt() ->
 
     lowpan_layer:tx(Datagram, ?FrameControl, ?MacHeader).
 
+%-------------------------------------------------------------------------------
+% Simple transmission 
+%-------------------------------------------------------------------------------
 tx() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
+%-------------------------------------------------------------------------------
+% Big payload transmission
+%-------------------------------------------------------------------------------
 tx_big_payload() ->
     Payload = lowpan:generate_chunks(),
 
@@ -141,6 +153,9 @@ tx_big_payload() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
+%-------------------------------------------------------------------------------
+% Ipv6 with nextHeader packet format verification
+%-------------------------------------------------------------------------------
 tx_with_udp() ->
     IPv6Header =
         #ipv6_header{
@@ -165,10 +180,10 @@ tx_with_udp() ->
     Ipv6Pckt = ipv6:build_ipv6_udp_packet(IPv6Header, UdpHeader, ?Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
+%-------------------------------------------------------------------------------
+% Transmission of packet that needs routing
+%-------------------------------------------------------------------------------
 msh_pckt_tx() ->
-    Node1Address = lowpan:get_default_LL_add(?SenderMacAddress),
-    Node3Address = lowpan:get_default_LL_add(?ReceiverMacAddress),
-
     IPv6Header =
         #ipv6_header{
             version = 6,
@@ -177,23 +192,24 @@ msh_pckt_tx() ->
             payload_length = ?PayloadLength,
             next_header = 17,
             hop_limit = 64,
-            source_address = Node1Address,
-            destination_address = Node3Address
+            source_address = ?Node1Address,
+            destination_address = ?Node3Address
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, ?Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
+%-------------------------------------------------------------------------------
+% Data reception
+%-------------------------------------------------------------------------------
 rx() ->
     lowpan_layer:frame_reception(), 
     rx().
 
-start(_Type, _Args) ->
-    {ok, Supervisor} = robot_sup:start_link(),
-    grisp:add_device(spi2, pmod_uwb),
-    pmod_uwb:write(tx_antd, #{tx_antd => ?TX_ANTD}),
-    pmod_uwb:write(lde_if, #{lde_rxantd => ?RX_ANTD}),
-
+%-------------------------------------------------------------------------------
+% IEEE 802.15.4 setup only for manual configuration
+%-------------------------------------------------------------------------------
+ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_layer:input_callback/4
@@ -206,15 +222,29 @@ start(_Type, _Args) ->
             ok
     end,
 
-    case application:get_env(robot, mac_addr) of
-        {ok, MacAddr} ->
-            ieee802154:set_pib_attribute(mac_extended_address, MacAddr);
-        _ ->
-            ok
-    end,
+    case byte_size(MacAddr) of 
+        ?EXTENDED_ADDR_LEN -> ieee802154:set_pib_attribute(mac_extended_address, MacAddr); 
+        ?SHORT_ADDR_LEN -> ieee802154:set_pib_attribute(mac_short_address, MacAddr)
+    end, 
+
+    ieee802154:rx_on().
     
-    ieee802154:rx_on(),
-    lowpan_layer:start(#{node_mac_addr => ?Node2MacAddress, routing_table => ?Default_routing_table}),
+start(_Type, _Args) ->
+    {ok, Supervisor} = robot_sup:start_link(),
+    grisp:add_device(spi2, pmod_uwb),
+    pmod_uwb:write(tx_antd, #{tx_antd => ?TX_ANTD}),
+    pmod_uwb:write(lde_if, #{lde_rxantd => ?RX_ANTD}),
+
+    NodeMacAddr = case application:get_env(robot, mac_addr) of
+        {ok, MacAddr} ->
+            MacAddr;
+        _ ->
+            ?Node1MacAddress
+    end,
+
+    %ieee802154_setup(NodeMacAddr),
+
+    lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
     {ok, Supervisor}.
 
 % @private
