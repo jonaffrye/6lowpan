@@ -7,16 +7,18 @@
 -export([init/1, start_link/1, start/1, stop_link/0, stop/0]).
 -export([idle_state/3, callback_mode/0]).
 -export([send_packet/1, send_unc_datagram/3, tx/3]).
--export([frame_reception/0]).
+-export([frame_reception/0, rx_info_on/0]).
 -export([input_callback/4]).
 
 %---------- API Functions --------------------------------------------------------------
 init(Params) ->
     CurrNodeMacAdd = maps:get(node_mac_addr, Params),
-    setup_ets(),
+    setup_node_info_ets(),
     set_nodeData_value(currNodeMacAdd, CurrNodeMacAdd),
 
-    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => #{}, fragment_tags=>#{}},
+    DatagramMap = ets:new(datagram_map, [named_table, public]),
+
+    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => DatagramMap, fragment_tag => ?DEFAULT_TAG_VALUE},
     {ok, idle_state, Data}.
 
 -spec start_link(Params :: #{}) -> {ok, pid()} | {error, any()}.
@@ -93,9 +95,23 @@ frame_reception() ->
         {dtg_discarded} -> 
             io:format("Datagram successfully discarded ~n"),
             dtg_discarded
-    after 10000 ->
-        %gen_statem:call(?MODULE, {reassembly_timeout, Datagram})
-        timeout
+    after ?REASSEMBLY_TIMEOUT ->
+        gen_statem:call(?MODULE, {timeout})
+    end.
+
+
+
+%-------------------------------------------------------------------------------
+% Get any datagram from ieee802154 and return additional info (frag_header, ...)
+% mainly use for testing purpose
+%-------------------------------------------------------------------------------
+rx_info_on() ->
+    gen_statem:cast(?MODULE, {frame_rx_info_on, self()}),
+    receive
+        {additional_info, Info} ->
+            Info
+    after ?REASSEMBLY_TIMEOUT ->
+        gen_statem:call(?MODULE, {reassembly_timeout})
     end.
     
 
@@ -120,14 +136,20 @@ input_callback(Frame, _, _, _) ->
             false ->
                 {false, MH#mac_header.dest_addr, #{}}
     end,
+
+    OriginatorAddr = case MeshPckInfo of
+                        #{}-> MH#mac_header.src_addr;
+                        _ -> MeshPckInfo#meshInfo.originator_address
+                    end,
     
     CurrNodeMacAdd = get_nodeData_value(currNodeMacAdd),
-    handle_Datagram(IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, MH, Datagram).
+
+    handle_Datagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, CurrNodeMacAdd, FC, MH, Datagram).
 
 %-------------------------------------------------------------------------------
 % Checks if received datagram reached destination or not
 %-------------------------------------------------------------------------------
-handle_Datagram(IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, MH, Datagram) ->
+handle_Datagram(IsMeshedPckt, MeshPckInfo,OriginatorAddr, FinalDstMacAdd, CurrNodeMacAdd, FC, MH, Datagram) ->
     DestAdd = lowpan:convert_addr_to_bin(FinalDstMacAdd),
     io:format("Final destination address: ~p~n", [DestAdd]),
     io:format("Current node address     : ~p~n", [CurrNodeMacAdd]),
@@ -136,7 +158,8 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, M
         CurrNodeMacAdd ->
             io:format("Destination node reached, Forwarding to lowpan layer~n"),
             Rest = lowpan:remove_mesh_header(Datagram),
-            gen_statem:cast(?MODULE, {new_frame, Rest});
+        
+            gen_statem:cast(?MODULE, {new_frame, OriginatorAddr, Rest});
         ?BroadcastAdd ->
             io:format("Ack received"),
             io:format("------------------------------------------------------~n");
@@ -211,7 +234,7 @@ idle_state({call, From}, {dtg_tx, Ipv6Pckt, FrameControl, MacHeader}, Data) ->
 %-------------------------------------------------------------------------------
 % state: pckt_tx, in this state, the node transmit Ipv6 packet to ieee802154
 %-------------------------------------------------------------------------------
-idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd, fragment_tags := TagsMap}) ->
+idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd, fragment_tag := Tag}) ->
     % 1st - retrieve useful info from Ip packet
     DestAddress = PcktInfo#ipv6PckInfo.destAddress,
     SrcAddress = PcktInfo#ipv6PckInfo.sourceAddress,
@@ -229,13 +252,9 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
     CompressedPacketLen = byte_size(CompressedPacket),
 
     io:format("Compressed packet size: ~p bytes~n", [CompressedPacketLen]),
-
-    % get unique tag
-    Tag = rand:uniform(?MAX_TAG_VALUE),
-    {ValidTag, UpdatedTagsMap} = lowpan:check_tag_unicity(TagsMap, Tag),
     
     % 3rd - check if fragmentation is needed, if so return fragments list
-    {FragReq, Fragments} = lowpan:trigger_fragmentation(CompressedPacket, ValidTag),
+    {FragReq, Fragments} = lowpan:trigger_fragmentation(CompressedPacket, Tag),
 
     % 4th - get next hop
     io:format("Routing check...~n"),
@@ -249,11 +268,11 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
                         dest_addr_mode = ?EXTENDED},
     case FragReq of
         true ->
-            Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC),
-            {next_state, idle_state, Data#{fragments => Fragments, fragment_tags => UpdatedTagsMap}, [{reply, From, Response}]};
+            Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC, Tag),
+            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => Tag+1}, [{reply, From, Response}]};
         false ->
-            Response = send_fragment(RouteExist, Fragments, MeshedHdrBin, MH, FC),
-            {next_state, idle_state, Data#{fragments => Fragments, fragment_tags => UpdatedTagsMap}, [{reply, From, Response}]}; 
+            Response = send_fragment(RouteExist, Fragments, MeshedHdrBin, MH, FC, Tag),
+            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => Tag+1}, [{reply, From, Response}]}; 
         size_err -> 
             io:format("The datagram size exceed the authorized length~n"),
             {next_state, idle_state, Data, [{reply, From, error_frag_size}]}
@@ -266,45 +285,114 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
 idle_state(cast, {frame_rx, From}, Data) ->
     ieee802154:rx_on(),  % uncomment when testing
     io:format("~p waiting to receive data... ~n", [node()]),
-    NewData = Data#{caller => From},
+    NewData = Data#{caller => From,  info=>?INFO_OFF},
+    {next_state, idle_state, NewData}; 
+
+idle_state(cast, {frame_rx_info_on, From}, Data) ->
+    ieee802154:rx_on(),  % uncomment when testing
+    io:format("~p waiting to receive data... ~n", [node()]),
+    NewData = Data#{caller => From, info=>?INFO_ON},
     {next_state, idle_state, NewData};
 
-
 %-------------------------------------------------------------------------------
-% state: new_frame, in this state, the node process the received frame
+% state: new_frame, in this state, the node processes the received frame
 %-------------------------------------------------------------------------------
-idle_state(cast, {new_frame, Datagram}, Data = #{datagram_map := DatagramMap, caller := From}) ->
-    <<Type:3, _/bitstring>> = Datagram,
-    case Type of
-        ?IPHC_DHTYPE -> % compressed datagram
+idle_state(cast, {new_frame, OriginatorAddr, Datagram}, Data = #{caller := From}) ->
+    case Datagram of
+        <<?IPHC_DHTYPE:3, _Rest/bitstring>> -> % compressed datagram
+            io:format("Received compressed datagram~n"),
             From ! {reassembled_packet, Datagram},
             {next_state, idle_state, Data};
-        _ -> % fragmented datagram
-            io:format("Storing fragment~n"),
-            UpdatedMap = put_and_reassemble(Datagram, DatagramMap, Data),
-            {keep_state, Data#{datagram_map => UpdatedMap}}
+
+        <<?IPV6_DHTYPE:8, Payload/bitstring>> -> % uncompressed IPv6 datagram
+            io:format("Received uncompressed IPv6 datagram~n"),
+            % Process uncompressed IPv6 datagram
+            From ! {reassembled_packet, Payload},
+            {next_state, idle_state, Data};
+
+        <<Type:5, _Rest/bitstring>> when Type =:= ?FRAG1_DHTYPE; Type =:= ?FRAGN_DHTYPE -> % fragmented datagram
+        FragInfo = lowpan:datagram_info(Datagram),
+        % Info = #additional_info{
+        %                 datagram_tag = FragInfo#frag_info.datagram_tag, 
+        %                 datagram_size = FragInfo#frag_info.datagram_size
+        %         },
+        Info = FragInfo#datagramInfo.datagramTag,
+        NewData = Data#{additional_info => Info},
+        io:format("Storing fragment~n"),
+        gen_statem:cast(?MODULE, {add_fragment, OriginatorAddr, Datagram}),
+        {keep_state, NewData} 
     end;
 
 %-------------------------------------------------------------------------------
-% state: collected, in this state, the node sends the reassemble packet
+% state: add_fragment, in this state, the node adds new fragment to the map 
 %-------------------------------------------------------------------------------
-idle_state(cast, {collected, Tag, UpdatedMap}, StateData = #{caller := From}) ->
-    ReassembledPacket = lowpan:reassemble(Tag, UpdatedMap),
-    io:format("Complete for pckt ~p~n", [Tag]),
-    From ! {reassembled_packet, ReassembledPacket},
+idle_state(cast, {add_fragment, OriginatorAddr, Datagram}, State = #{datagram_map := DatagramMap, caller := From}) ->
+    DtgInfo = lowpan:datagram_info(Datagram),
+
+    Size = DtgInfo#datagramInfo.datagramSize,
+    Tag = DtgInfo#datagramInfo.datagramTag,
+    Offset = DtgInfo#datagramInfo.datagramOffset,
+    Payload = DtgInfo#datagramInfo.payload,
+
+    Key = {OriginatorAddr, Tag}, 
+    CurrTime = os:system_time(second),
+
+    case lowpan:store_fragment(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag, self()) of
+        {complete_first_frag, ReassembledPacket} ->
+            io:format("Complete for pckt ~p~n", [Key]),
+            io:format("----------------------------------------------------------------------------------------~n"),
+            From ! {reassembled_packet, ReassembledPacket},
+            {next_state, idle_state, State};
+
+        {complete, UpdatedDatagram} ->
+            gen_statem:cast(?MODULE, {collected, Key, UpdatedDatagram}),
+            NewState = State#{key => Key},
+            {keep_state, NewState};
+
+        {duplicate, _} ->
+            io:format("Duplicate frame detected~n"),
+            io:format("----------------------------------------------------------------------------------------~n"),
+            NewState = State#{key => Key},
+            {keep_state, NewState};
+
+        {incomplete, _} ->
+            io:format("Uncomplete datagram, waiting for other fragments ~n"),
+            %io:format("DatagramMap: ~p~n",[Map]),
+            io:format("----------------------------------------------------------------------------------------~n"),
+            NewState = State#{key => Key},
+            {keep_state, NewState}
+    end;
+
+
+%-------------------------------------------------------------------------------
+% state: collected, in this state, the node sends the reassembled packet
+%-------------------------------------------------------------------------------
+idle_state(cast, {collected, Key, UpdatedDatagram}, StateData = #{datagram_map := DatagramMap, caller := From, additional_info:=Info, info:=InfoReq}) ->
+    ReassembledPacket = lowpan:reassemble(UpdatedDatagram),
+    io:format("Complete for pckt ~p~n", [Key]),
+    ets:delete(DatagramMap, Key),
+    case InfoReq of
+        ?INFO_ON -> 
+            From ! {additional_info, Info};
+        _ -> 
+            From ! {reassembled_packet, ReassembledPacket}
+    end,
     {next_state, idle_state, StateData};
-
-% idle_state(cast, {discard_datagram, _}, Data = #{caller := From}) ->
-%     io:format("Hop left value: 0, discarding the datagram~n"),
-%     From ! {dtg_discarded},
-%     {next_state, idle_state, Data};
-
+    
 %-------------------------------------------------------------------------------
 % state: reassembly_timeout, in this state, the node discards the datagram
 %-------------------------------------------------------------------------------
-idle_state({call, From}, {reassembly_timeout}, Data) ->
-    % io:format("Timeout for datagram ~p~n", []),
-    {next_state, idle_state, Data, [{reply, From, timeout}]}.
+
+idle_state({call, From}, {timeout}, State = #{datagram_map := DatagramMap, key := Key}) ->
+    io:format("Timeout before reassembly of packet ~p~n", [Key]),
+    ets:delete(DatagramMap, Key),
+    {next_state, idle_state, State, [{reply, From, reassembly_timeout}]}; 
+
+idle_state({call, From}, {timeout}, State) ->
+    {next_state, idle_state, State, [{reply, From, timeout}]}.
+
+
+
 
 
 %---------- utils functions -----------------------------------------------------------
@@ -313,7 +401,7 @@ idle_state({call, From}, {reassembly_timeout}, Data) ->
 % Transmits each fragment in the FragmentList to ieee802154
 %-------------------------------------------------------------------------------
 % No frag needed => send CompressedPacket  
-send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC) ->
+send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC, Tag) ->
     Pckt = case RouteExist of
                 true ->
                     <<MeshedHdrBin/binary, CompressedPacket/bitstring>>;
@@ -322,7 +410,8 @@ send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC) ->
                     CompressedPacket
             end,
     io:format("Sending ~p bytes~n", [byte_size(Pckt)]),
-    case ieee802154:transmission({FC, MH, Pckt}) of
+    MacHeader = MH#mac_header{seqnum = Tag},
+    case ieee802154:transmission({FC, MacHeader, Pckt}) of
         {ok, _} ->
             ok;
         {error, Error} ->
@@ -330,7 +419,7 @@ send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC) ->
     end.
 
 %frag needed => add mesh header
-send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHdrBin, MH, FC) ->
+send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHdrBin, MH, FC, Tag) ->
     Pckt = case RouteExist of
                 true ->
                     <<MeshedHdrBin/binary, FragHeader/binary, FragPayload/bitstring>>;
@@ -339,59 +428,18 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
     timer:sleep(10),
-    case ieee802154:transmission({FC, MH, Pckt}) of
+    MacHeader = MH#mac_header{seqnum = Tag+Counter},
+    case ieee802154:transmission({FC, MacHeader, Pckt}) of
         {ok, _} ->
             io:format("~pth fragment: ~p bytes sent~n", [Counter, byte_size(Pckt)]),
-            send_fragments(RouteExist, Rest, Counter + 1, MeshedHdrBin, MH, FC);
+            send_fragments(RouteExist, Rest, Counter + 1, MeshedHdrBin, MacHeader, FC, Tag);
         {error, Error} ->
             io:format("Error during transmission of fragment ~p: ~p~n", [Counter, Error]),
             Error
     end;          
-send_fragments(_RouteExist, [], _Counter, _MeshedHdrBin, _MH, _FC) ->
+send_fragments(_RouteExist, [], _Counter, _MeshedHdrBin, _MH, _FC, _Tag) ->
     ok.
 
-
-%---------------------------------------------------------------------------------
-% Add new datagram in the datgram map and check if all of them have been received
-%---------------------------------------------------------------------------------
-put_and_reassemble(Datagram, Map, _) ->
-    DtgInfo = lowpan:datagram_info(Datagram),
-
-    Size = DtgInfo#datagramInfo.datagramSize,
-    Tag = DtgInfo#datagramInfo.datagramTag,
-    Offset = DtgInfo#datagramInfo.datagramOffset,
-    Payload = DtgInfo#datagramInfo.payload,
-
-    io:format("Received ~pth payload: ~p bytes~n", [Offset + 1, byte_size(Payload)]),
-
-    {UpdatedMap, DatagramComplete} =
-        case maps:is_key(Tag, Map) of
-            true -> % datagram in map
-                {NewMap, AllReceived} =
-                    lowpan:check_duplicate_frag(Map, Tag, Offset, Size, Payload),
-                {NewMap, AllReceived};
-
-            false -> % datagram not in map
-                CurrSize = byte_size(Payload),
-                NewDatagram =
-                    #datagram{tag = Tag,
-                              size = Size,
-                              cmpt = CurrSize,
-                              fragments = #{Offset => Payload}},
-                NewMap = maps:put(Tag, NewDatagram, Map),
-                AllReceived = CurrSize == Size,
-                {NewMap, AllReceived}
-        end,
-    io:format("Map: ~p~n", [UpdatedMap]),
-
-    case DatagramComplete of
-        true ->
-            gen_statem:cast(?MODULE, {collected, Tag, UpdatedMap});
-        false ->
-            io:format("Uncomplete datagram ~n"),
-            io:format("------------------------------------------------------~n")
-    end,
-    UpdatedMap.
 
 %-------------------------------------------------------------------------------
 % Decrements hop left field, build new mesh header and returns new datagram
@@ -442,9 +490,8 @@ forward_datagram(Frame, FrameControl, MacHeader, Data) ->
 %-------------------------------------------------------------------------------
 % Used to store current node mac address
 %-------------------------------------------------------------------------------
-setup_ets() ->
+setup_node_info_ets() ->
     ets:new(nodeData, [named_table, public, {keypos, 1}]).
-
 set_nodeData_value(Key, Value) ->
     ets:insert(nodeData, {Key, Value}).
 
@@ -456,6 +503,12 @@ get_nodeData_value(Key) ->
             Value
     end.
 
+
+%-------------------------------------------------------------------------------
+% Used to store received datagrams 
+%-------------------------------------------------------------------------------
+% setup_datagramMap_ets()->
+%     ets:new(datagram_map, [named_table, public, {read_concurrency, true}, {write_concurrency, true}]).
 
 %-------------------------------------------------------------------------------
 % Setup ieee802154 layer

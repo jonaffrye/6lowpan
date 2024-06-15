@@ -601,51 +601,40 @@ datagram_info_test(_Config) ->
 reassemble_fragments_list_test(_Config) ->
     Data = <<"Hello World!">>,
     PayloadLen = byte_size(Data),
-    FragHeader1 =
-        #frag_header{
-            frag_type = ?FRAG1_DHTYPE,
-            datagram_size = PayloadLen,
-            datagram_tag = 25,
-            datagram_offset = 0
-        },
-    FragHeader2 =
-        #frag_header{
-            frag_type = ?FRAGN_DHTYPE,
-            datagram_size = PayloadLen,
-            datagram_tag = 25,
-            datagram_offset = 1
-        },
-    Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
-    Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
-    Fragments = [Frag1, Frag2],
-    Reassembled = lowpan:reassemble_datagrams(Fragments),
+    % Crée un datagram pour tester la fonction reassemble/1
+    Datagram = #datagram{
+        tag = 25,
+        size = PayloadLen,
+        cmpt = PayloadLen,
+        fragments = #{0 => <<"Hello ">>, 1 => <<"World!">>},
+        timer = erlang:system_time(second)
+    },
+
+    % Appel de la fonction reassemble/1
+    Reassembled = lowpan:reassemble(Datagram),
     <<"Hello World!">> = Reassembled,
     ok.
 
 reassemble_single_fragments_test(_Config) ->
     Data = <<"Hello World!">>,
     PayloadLen = byte_size(Data),
-    FragHeader1 =
-        #frag_header{
-            frag_type = ?FRAG1_DHTYPE,
-            datagram_size = PayloadLen,
-            datagram_tag = 25,
-            datagram_offset = 0
-        },
-    FragHeader2 =
-        #frag_header{
-            frag_type = ?FRAGN_DHTYPE,
-            datagram_size = PayloadLen,
-            datagram_tag = 25,
-            datagram_offset = 1
-        },
-    Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
-    Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
-    DatagramMap = maps:new(),
-    {notYetReassembled, IntermediateMap} = lowpan:reassemble_datagram(Frag1, DatagramMap),
-    {Reassembled, _FinalMap} = lowpan:reassemble_datagram(Frag2, IntermediateMap),
 
-    <<"Hello World!">> = Reassembled,
+    DatagramMap = ets:new(datagram_map_test, [named_table, public]),
+    {Result1, _Map1} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 0, <<"Hello ">>, erlang:system_time(second), PayloadLen, 25, self()),
+    incomplete = Result1,
+
+    {Result2, _Map2} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 1, <<"World!">>, erlang:system_time(second), PayloadLen, 25, self()),
+    complete = Result2,
+
+    Reassembled = lowpan:reassemble(#datagram{
+                                        tag = 25,
+                                        size = PayloadLen,
+                                        cmpt = PayloadLen,
+                                        timer = erlang:system_time(second),
+                                        fragments = #{0 => <<"Hello ">>, 1 => <<"World!">>}
+                                    }),
+    Data = Reassembled,
+    ets:delete(DatagramMap),
     ok.
 
 reassemble_full_ipv6_pckt_test(_Config) ->
@@ -658,23 +647,48 @@ reassemble_full_ipv6_pckt_test(_Config) ->
             payload_length = byte_size(Payload),
             next_header = 17,
             hop_limit = 64,
-            source_address = <<1>>,
-            destination_address = <<2>>
+            source_address = <<1:128>>,
+            destination_address = <<2:128>>
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
     io:format("Original pckt size ~p bytes~n", [byte_size(Ipv6Pckt)]),
     FragmentList = lowpan:fragment_ipv6_packet(Ipv6Pckt, byte_size(Ipv6Pckt)),
-    Fragments =
-        lists:map(
-            fun({FragHeader, FragPayload}) -> <<FragHeader/binary, FragPayload/bitstring>> end,
-            FragmentList
-        ),
-    Reassembled = lowpan:reassemble_datagrams(Fragments),
-    io:format("Reassembled:  ~p~nIpv6Pckt:  ~p~n", [Reassembled, Ipv6Pckt]),
-    Ipv6Pckt = Reassembled,
 
+    DatagramMap = ets:new(datagram_map_test, [named_table, public]),
+
+    lists:foreach(
+        fun({FragHeader, FragPayload}) ->
+            Offset = case byte_size(FragHeader) of 
+                4 -> %first frag
+                    0;
+                5 -> 
+                    <<_:32, Ofset:8>> = FragHeader, 
+                    Ofset
+            end,
+
+            io:format("Storing fragment with offset ~p~n", [Offset]),
+            {Result, _Map} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, Offset, FragPayload, erlang:system_time(second), byte_size(Ipv6Pckt), 25, self()),
+            io:format("Fragment stored result: ~p~n", [Result])
+        end,
+        FragmentList
+    ),
+
+    Datagram = ets:lookup_element(DatagramMap, {<<1>>, 25}, 2),
+    io:format("Datagram after storing fragments: ~p~n", [Datagram]),
+
+    Reassembled = lowpan:reassemble(Datagram),
+    io:format("Reassembled: ~p~nIpv6Pckt: ~p~n", [Reassembled, Ipv6Pckt]),
+
+    case Ipv6Pckt of
+        Reassembled -> io:format("Reassembly successful.~n");
+        _ -> io:format("Reassembly failed.~n")
+    end,
+
+    % Nettoyage
+    ets:delete(DatagramMap),
     ok.
+
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------

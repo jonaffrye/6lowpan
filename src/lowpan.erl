@@ -4,8 +4,7 @@
 
 -export([
     pkt_encapsulation/2, fragment_ipv6_packet/2,
-    reassemble_datagram/2, reassemble_datagrams/1, reassemble/2,
-    create_iphc_pckt/2, get_ipv6_pkt/2, datagram_info/1,
+    reassemble/1, store_fragment/8,create_iphc_pckt/2, get_ipv6_pkt/2, datagram_info/1,
     compress_ipv6_header/1, build_datagram_pckt/2, build_firstFrag_pckt/5,
     get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
     decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1,
@@ -16,7 +15,7 @@
     generate_EUI64_mac_addr/1, get_EUI64_from_48bit_mac/1,
     get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,
     generate_LL_addr/1, create_new_mesh_header/2, create_new_mesh_datagram/3,
-    check_duplicate_frag/5, remove_mesh_header/1, convert_addr_to_bin/1, 
+    remove_mesh_header/1, convert_addr_to_bin/1, 
     check_tag_unicity/2
 ]).
 
@@ -695,7 +694,6 @@ build_datagram_pckt(DtgmHeader, Payload) ->
             <<Header/binary, Payload/bitstring>>
     end.
 
-
 %-------------------------------------------------------------------------------
 % check if a packet needs to be fragmented or not and has a valid size 
 % returns a list of fragments if yes, the orginal packet if not
@@ -1143,202 +1141,104 @@ datagram_info(Fragment) ->
             FragInfo
     end.
 
-%-------------------------------------------------------------------------------
-% @doc launch the reassembly process
-% @param Fragments: list [{Header1, Fragment1}, ..., {HeaderN, FragmentN}]
-% @returns the reassembled ipv6 packet
-% @end
-%-------------------------------------------------------------------------------
-reassemble_datagrams(Fragments) when is_list(Fragments) ->
-    [FirstFragment | _] = Fragments,
-
-    DtgInfo = lowpan:datagram_info(FirstFragment),
-    Size = DtgInfo#datagramInfo.datagramSize,
-    Tag = DtgInfo#datagramInfo.datagramTag,
-
-    Datagram = #datagram{tag = Tag, size = Size},
-    DatagramMap =
-        % add retrieve info to the datagram map
-        maps:put(Tag, Datagram, ?DATAGRAMS_MAP),
-
-    {ReassembledPacket, _NewMap} = process_fragments(Fragments, DatagramMap, undefined),
-    ReassembledPacket.
 
 %-------------------------------------------------------------------------------
-% @doc launch the reassembly process for a single fragment
-% @param Fragment: single Fragment
-% @param DatagramMap: the current state of the datagram map
-% @returns a tuple containing the reassembled packet (if complete) or the atom
-%          `notYetReassembled` and the updated DatagramMap
-% @end
+% Store the fragment in ETS and check if the datagram is complete
 %-------------------------------------------------------------------------------
-reassemble_datagram(Fragment, DatagramMap) ->
-    DtgInfo = lowpan:datagram_info(Fragment),
-    Size = DtgInfo#datagramInfo.datagramSize,
-    Tag = DtgInfo#datagramInfo.datagramTag,
+store_fragment(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag, _From) ->
+    {Result, Map} = case ets:lookup(DatagramMap, Key) of
+        [] ->
+            % Datagram not in map
+            handle_new_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag);
+        [{Key, OldDatagram}] ->
+            handle_existing_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, OldDatagram)
+    end,
 
-    case maps:find(Tag, DatagramMap) of
-        {ok, _} ->
-            process_fragment(Fragment, DatagramMap);
-        error ->
-            % first fragment
-            Datagram = #datagram{tag = Tag, size = Size},
-            UpdatedMap = maps:put(Tag, Datagram, DatagramMap),
-            process_fragment(Fragment, UpdatedMap)
-    end.
+    io:format("------------------------------------------------------~n"),
+    io:format("DatagramMap after update:~n"),
+    print_datagram_map(DatagramMap),
+    io:format("------------------------------------------------------~n"),
+    {Result, Map}.
 
-%-------------------------------------------------------------------------------
-% @private
-% @doc helper function for the reassembly process
-% @returns a tuple containing the reassembled packet and the final DatagramMap state
-% @end
-%-------------------------------------------------------------------------------
-process_fragments([], Map, ReassembledPacket) ->
-    {ReassembledPacket,
-        % when the list is empty, returns the last payload and the final map state
-        Map};
-process_fragments([HeadFrag | TailFrags], DatagramMap, _Payload) ->
-    {ReassembledPacket, UpdatedMap} = process_fragment(HeadFrag, DatagramMap),
-    process_fragments(TailFrags, UpdatedMap, ReassembledPacket).
-
-%-------------------------------------------------------------------------------
-% @private
-% @doc process the first fragment, launch timer, and add it to the DatagramMap
-% the reassembly if last fragment is received
-% @end
-%-------------------------------------------------------------------------------
-process_fragment(<<?FRAG1_DHTYPE:5, Size:11, Tag:16, Payload/binary>>, Map) ->
-    NewFragment = #{0 => Payload},
-    CurrSize = byte_size(Payload),
-    Datagram =
-        #datagram{
+handle_new_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag) ->
+    if byte_size(Payload) == Size ->
+        % Complete datagram in a single fragment
+        ReassembledPacket = reassemble(#datagram{
             tag = Tag,
             size = Size,
-            cmpt = CurrSize,
-            fragments = NewFragment
+            cmpt = byte_size(Payload),
+            fragments = #{Offset => Payload},
+            timer = CurrTime
+        }),
+        ets:insert(DatagramMap, {Key, ReassembledPacket}),
+        {complete_first_frag, ReassembledPacket};
+    true ->
+        NewDatagram = #datagram{
+            tag = Tag,
+            size = Size,
+            cmpt = byte_size(Payload),
+            fragments = #{Offset => Payload},
+            timer = CurrTime
         },
-    UpdatedMap = maps:put(Tag, Datagram, Map),
-    case CurrSize == Size of
-        true ->
-            ReassembledPacket = reassemble(Tag, UpdatedMap),
-            {ReassembledPacket, UpdatedMap};
-        false ->
-            {notYetReassembled, UpdatedMap}
-    end;
-%-------------------------------------------------------------------------------
-% @private
-% @doc process the subsequent fragments, add them to the DatagramMap and launch
-% the reassembly if last fragment is received
-% @end
-%-------------------------------------------------------------------------------
-process_fragment(<<?FRAGN_DHTYPE:5, Size:11, Tag:16, Offset:8, Payload/binary>>, Map) ->
-    case maps:find(Tag, Map) of
-        {ok, OldDatagram} ->
-            CurrSize = byte_size(Payload),
-            % update size cmpt
-            UpdatedCmpt = OldDatagram#datagram.cmpt + CurrSize,
-            % get fragmentMap
-            FragmentsMap = OldDatagram#datagram.fragments,
-            % put new fragment to fragmentMap
-            NewFragments = FragmentsMap#{Offset => Payload},
-            UpdatedDatagram =
-                OldDatagram#datagram{
-                    cmpt = UpdatedCmpt,
-                    % update datagram
-                    fragments = NewFragments
-                },
-            % update DatagramMap
-            UpdatedMap = maps:put(Tag, UpdatedDatagram, Map),
-            case UpdatedCmpt == Size of
-                true ->
-                    ReassembledPacket = reassemble(Tag, UpdatedMap),
-                    {ReassembledPacket, UpdatedMap};
-                false ->
-                    {notYetReassembled, UpdatedMap}
-            end;
-        error ->
-            {undefined, Map}
+        ets:insert(DatagramMap, {Key, NewDatagram}),
+        {incomplete, NewDatagram}
     end.
 
-%-------------------------------------------------------------------------------
-% check if the received fragment already exist, if not update the datagram map
-%-------------------------------------------------------------------------------
-check_duplicate_frag(Map, Tag, Offset, Size, Payload) ->
-    Datagram = maps:get(Tag, Map),
-    FragmentsMap = Datagram#datagram.fragments,
-    KnownFragment = maps:is_key(Offset, FragmentsMap),
-
-    case KnownFragment of
+handle_existing_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, OldDatagram) ->
+    Fragments = OldDatagram#datagram.fragments,
+    case maps:is_key(Offset, Fragments) of
         true ->
-            io:format("Duplicate frame detected~n"),
-            {Map, false};
+            {duplicate, OldDatagram};
         false ->
-            io:format("Not a Duplicated frame~n"),
-            update_datagram_map(Size, Tag, Offset, Payload, Map)
+            NewFragments = maps:put(Offset, Payload, Fragments),
+            NewCmpt = OldDatagram#datagram.cmpt + byte_size(Payload),
+            UpdatedDatagram = OldDatagram#datagram{
+                cmpt = NewCmpt,
+                fragments = NewFragments,
+                timer = CurrTime
+            },
+            ets:insert(DatagramMap, {Key, UpdatedDatagram}),
+            if NewCmpt == Size ->
+                {complete, UpdatedDatagram};
+            true ->
+                {incomplete, UpdatedDatagram}
+            end
     end.
 
-%-------------------------------------------------------------------------------
-% Update the datagram map by adding the new fragment to the fragments's map
-% and update the counter, if currSize matches the datagramsize,
-% then all fragments have been received
-%-------------------------------------------------------------------------------
-update_datagram_map(Size, Tag, Offset, Payload, Map) ->
-    OldDatagram = maps:get(Tag, Map),
-    CurrSize = byte_size(Payload),
-    UpdatedCmpt = OldDatagram#datagram.cmpt + CurrSize,
-    FragmentsMap = OldDatagram#datagram.fragments,
-    NewFragments = FragmentsMap#{Offset => Payload},
-    UpdatedDatagram = OldDatagram#datagram{cmpt = UpdatedCmpt, fragments = NewFragments},
-    NewMap = maps:put(Tag, UpdatedDatagram, Map),
-    AllReceived = UpdatedCmpt == Size,
-    io:format("Pckt Size: ~p bytes ~n", [Size]),
-    io:format("Current pckt len: ~p bytes~n", [UpdatedCmpt]),
-    {NewMap, AllReceived}.
+
+print_datagram_map(DatagramMap) ->
+    List = ets:tab2list(DatagramMap),
+    lists:foreach(fun({Key, Value}) -> print_entry(Key, Value) end, List).
+
+print_entry(Key, {datagram, Tag, Size, Cmpt, Timer, Fragments}) ->
+    io:format("~p -> {datagram, ~p, ~p, ~p,~n    #{~n", [Key, Tag, Size, Cmpt]),
+    print_fragments(Fragments),
+    io:format("    }, ~p}~n", [Timer]).
+
+print_fragments(Fragments) ->
+    maps:fold(fun(Offset, Payload, Acc) ->
+                      io:format("        ~p => ~p,~n", [Offset, Payload]),
+                      Acc
+              end, ok, Fragments).
 
 %-------------------------------------------------------------------------------
-% @private
-% @doc helper function to reassembled all received fragments based on the Tag
-% @end
+% Reassemble the datagram from stored fragments
 %-------------------------------------------------------------------------------
-reassemble(Tag, UpdatedMap) ->
-    %io:format("Complete for pckt ~p~n~p~n", [Tag, UpdatedMap]),
-    Datagram = maps:get(Tag, UpdatedMap),
+reassemble(Datagram) ->
     FragmentsMap = Datagram#datagram.fragments,
-    % sort fragments by offset and extract the binary data
+    % Sort fragments by offset and extract the binary data
     SortedFragments =
         lists:sort([{Offset, Fragment} || {Offset, Fragment} <- maps:to_list(FragmentsMap)]),
-    % concatenate the fragments
-    ReassembledPacket =
-        lists:foldl(
-            fun({_Offset, Payload}, Acc) ->
-                % append new payload to the end
-                <<Acc/binary, Payload/binary>>
-            end,
-            <<>>,
-            %% <<>> is the initial value of the accumulator
-            SortedFragments
-        ),
-    % discard tag so it can be reused
-    discard_datagram(Tag, UpdatedMap),
-    ReassembledPacket.
+    % Concatenate the fragments
+    lists:foldl(
+        fun({_Offset, Payload}, Acc) ->
+            % Append new payload to the end
+            <<Acc/binary, Payload/binary>>
+        end,
+        <<>>, % <<>> is the initial value of the accumulator
+        SortedFragments
+    ).
 
-discard_datagram(Tag, Map) ->
-    maps:remove(Tag, Map).
-
-%discard_fragment(Offset, Fragments)->
-%    maps:remove(Offset,Fragments).
-
-%-------------------------------------------------------------------------------
-% @private
-% @doc helper function to discard stored fragments when timer exceed the limit
-% @end
-%-------------------------------------------------------------------------------
-%duplicate_frag(Offset, Datagram)->
-%    Fragments = Datagram#datagram.fragments,
-%    case maps:is_key(Offset, Fragments) of
-%        true-> true;
-%        false-> false
-%    end.
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %
@@ -1462,8 +1362,8 @@ get_mesh_info(Datagram) ->
             v_bit = VBit,
             f_bit = FBit,
             hops_left = HopsLeft,
-            originator_address = OriginatorAddress,
-            final_destination_address = FinalDestinationAddress,
+            originator_address = <<OriginatorAddress:64>>,
+            final_destination_address = <<FinalDestinationAddress:64>>,
             payload = Data
         },
     MeshInfo.
@@ -1621,7 +1521,7 @@ complete_with_padding(Packet) ->
     <<Packet/bitstring, 0:PaddingBits>>.
 
 generate_chunks() ->
-    NumChunks = 20,
+    NumChunks = 5,
     ChunkSize = 75,
     Chunks =
         lists:map(fun(N) -> generate_chunk(N, ChunkSize) end, lists:seq(NumChunks, 1, -1)),

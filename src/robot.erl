@@ -209,25 +209,25 @@ rx() ->
 %-------------------------------------------------------------------------------
 % IEEE 802.15.4 setup only for manual configuration
 %-------------------------------------------------------------------------------
-ieee802154_setup(MacAddr)->
-    ieee802154:start(#ieee_parameters{
-        duty_cycle = duty_cycle_non_beacon,
-        input_callback = fun lowpan_layer:input_callback/4
-    }),
+% ieee802154_setup(MacAddr)->
+%     ieee802154:start(#ieee_parameters{
+%         duty_cycle = duty_cycle_non_beacon,
+%         input_callback = fun lowpan_layer:input_callback/4
+%     }),
 
-    case application:get_env(robot, pan_id) of
-        {ok, PanId} ->
-            ieee802154:set_pib_attribute(mac_pan_id, PanId);
-        _ ->
-            ok
-    end,
+%     case application:get_env(robot, pan_id) of
+%         {ok, PanId} ->
+%             ieee802154:set_pib_attribute(mac_pan_id, PanId);
+%         _ ->
+%             ok
+%     end,
 
-    case byte_size(MacAddr) of 
-        ?EXTENDED_ADDR_LEN -> ieee802154:set_pib_attribute(mac_extended_address, MacAddr); 
-        ?SHORT_ADDR_LEN -> ieee802154:set_pib_attribute(mac_short_address, MacAddr)
-    end, 
+%     case byte_size(MacAddr) of 
+%         ?EXTENDED_ADDR_LEN -> ieee802154:set_pib_attribute(mac_extended_address, MacAddr); 
+%         ?SHORT_ADDR_LEN -> ieee802154:set_pib_attribute(mac_short_address, MacAddr)
+%     end, 
 
-    ieee802154:rx_on().
+%     ieee802154:rx_on().
     
 start(_Type, _Args) ->
     {ok, Supervisor} = robot_sup:start_link(),

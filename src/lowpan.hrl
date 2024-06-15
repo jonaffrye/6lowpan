@@ -54,26 +54,44 @@
          datagram_size, % 11 bits field to encode IP packet size bfr fragmentation
          datagram_tag, % 16 bits to tag a specific
          datagram_offset}). % 8-bits field for datagram offset
+
+-record(frag_info,
+        {datagram_size,
+         datagram_tag,
+         datagram_offset
+        }). 
+
 -record(datagram,
-        {%timer,
-         tag,
+        {tag,
          size,
          cmpt,
-         fragments}).
+         timer,
+         fragments
+         }).
 
 -define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
 -define(MAX_FRAG_SIZE, 2047). % 11 bits datagram_size
--define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
+-define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 -define(MAX_TAG_VALUE, 65535).
+-define(DEFAULT_TAG_VALUE, 2#00000000000).
+
+-record(additional_info, 
+        {datagram_size, 
+         datagram_tag,
+         hops_left,
+         timer
+        }). 
+-define(INFO_ON, 1).
+-define(INFO_OFF, 0).
 
 %--------------------------------------------------- Header Compression -----------------------------------------------------
 -record(ipv6_header,
         {version = 2#0110, % 4-bit Internet Protocol version number = 6
          traffic_class, % 8-bit traffic class field
          flow_label, % 20-bit flow label
-         payload_length, % 16-bit unsigned integer
+         payload_length, % 16-bit unsigned integer % 65535
          next_header, % 8-bit selector
          hop_limit, % 8-bit unsigned integer
          source_address, % 128-bit address of the originator of the packet
