@@ -1181,7 +1181,7 @@ handle_new_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag) ->
             timer = CurrTime
         },
         ets:insert(DatagramMap, {Key, NewDatagram}),
-        {incomplete, NewDatagram}
+        {incomplete_first, Key}
     end.
 
 handle_existing_datagram(DatagramMap, Key, Offset, Payload, CurrTime, Size, OldDatagram) ->

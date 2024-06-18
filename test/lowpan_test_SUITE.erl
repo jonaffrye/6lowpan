@@ -621,7 +621,7 @@ reassemble_single_fragments_test(_Config) ->
 
     DatagramMap = ets:new(datagram_map_test, [named_table, public]),
     {Result1, _Map1} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 0, <<"Hello ">>, erlang:system_time(second), PayloadLen, 25, self()),
-    incomplete = Result1,
+    incomplete_first = Result1,
 
     {Result2, _Map2} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 1, <<"World!">>, erlang:system_time(second), PayloadLen, 25, self()),
     complete = Result2,

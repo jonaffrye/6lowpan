@@ -9,8 +9,6 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include("lowpan.hrl").
-
 -define(ROBOT_LIB_DIR, "/_build/default/lib").
 
 -type mac_address_type() :: mac_short_address | mac_extended_address.
@@ -99,29 +97,27 @@ boot_lowpan_node(Name, Network, NodeMacAddress, Callback, RoutingTable) ->
 % @private
 %% @doc Initializes network layers for a node.
 -spec init_network_layers(node(), node(), mac_address_type(), mac_address(), fun()) -> ok.
-init_network_layers(Node, Network, MacAddressType, NodeMacAddress, Callback) ->
+init_network_layers(Node, Network, _MacAddressType, _NodeMacAddress, _Callback) ->
     erpc:call(
         Node,
         mock_phy_network,
         start,
-        % Starting the the mock driver/physical layer
         [spi2, #{network => Network}]
-    ),
-    erpc:call(
-        Node,
-        ieee802154,
-        start,
-        [
-            #ieee_parameters{
-                phy_layer = mock_phy_network,
-                duty_cycle = duty_cycle_non_beacon,
-                input_callback = Callback
-            }
-        ]
-    ),
-    erpc:call(Node, mock_top_layer, start, []),
-    erpc:call(Node, frame_handler, start, [NodeMacAddress]),
-    erpc:call(Node, ieee802154, set_pib_attribute, [MacAddressType, NodeMacAddress]).
+    ).
+    % erpc:call(
+    %     Node,
+    %     ieee802154,
+    %     start,
+    %     [
+    %         #ieee_parameters{
+    %             phy_layer = mock_phy_network,
+    %             duty_cycle = duty_cycle_non_beacon,
+    %             input_callback = Callback
+    %         }
+    %     ]
+    % ),
+    % erpc:call(Node, mock_top_layer, start, []),
+    %erpc:call(Node, ieee802154, set_pib_attribute, [MacAddressType, NodeMacAddress]).
 
 %% @doc Stops a 6LoWPAN node.
 -spec stop_lowpan_node(node(), pid()) -> ok.

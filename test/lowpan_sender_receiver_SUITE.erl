@@ -649,11 +649,11 @@ tag_verification_receiver(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
     ExpectedTag0 = 0, ExpectedTag1 = 1, ExpectedTag2 = 2, ExpectedTag3 = 3, ExpectedTag4 = 4,
 
-    ExpectedTag0 = erpc:call(Node2, lowpan_layer, rx_info_on, []),
-    ExpectedTag1 = erpc:call(Node2, lowpan_layer, rx_info_on, []),
-    ExpectedTag2 = erpc:call(Node2, lowpan_layer, rx_info_on, []),
-    ExpectedTag3 = erpc:call(Node2, lowpan_layer, rx_info_on, []),
-    ExpectedTag4 = erpc:call(Node2, lowpan_layer, rx_info_on, []),
+    ExpectedTag0 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
+    ExpectedTag1 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
+    ExpectedTag2 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
+    ExpectedTag3 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
+    ExpectedTag4 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
 
     ct:pal("Big payload received successfully at node2"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
