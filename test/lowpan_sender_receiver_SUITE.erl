@@ -13,7 +13,8 @@
     no_hoplft_dst_reached_sender/1, no_hoplft_dst_reached_receiver/1, 
     unexpected_dtg_size_sender/1, tag_verification_receiver/1,
     same_tag_different_senders_sender/1, same_tag_different_senders_receiver/1,
-    timeout_sender/1, timeout_receiver/1, tag_verification_sender/1
+    timeout_sender/1, timeout_receiver/1, tag_verification_sender/1, duplicate_sender/1,
+    duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1 
 ]).
 
 all() ->
@@ -28,13 +29,15 @@ groups() ->
             {group, big_payload_tx_rx},
             {group, multicast_src_tx},
             {group, routing_req_tx_rx},
-            {group, big_pyld_routing_tx_rx}, 
-            {group, discard_datagram_tx_rx}, 
+            {group, big_pyld_routing_tx_rx},
+            {group, discard_datagram_tx_rx},
             {group, no_hoplft_dst_reached_tx_rx},
             {group, unexpected_dtg_size_tx},
             {group, same_tag_different_senders},
             {group, timeout_scenario},
-            {group, tag_verification_tx_rx}
+            {group, tag_verification_tx_rx},
+            {group, duplicate_tx_rx},
+            {group, multiple_hop_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
@@ -46,7 +49,9 @@ groups() ->
         {unexpected_dtg_size_tx, [sequential], [unexpected_dtg_size_sender]},
         {same_tag_different_senders, [parallel, {repeat, 1}], [same_tag_different_senders_sender, same_tag_different_senders_receiver]},
         {timeout_scenario, [parallel, {repeat, 1}], [timeout_sender, timeout_receiver]}, 
-        {tag_verification_tx_rx, [parallel, {repeat, 1}], [tag_verification_sender, tag_verification_receiver]}
+        {tag_verification_tx_rx, [parallel, {repeat, 1}], [tag_verification_sender, tag_verification_receiver]},
+        {duplicate_tx_rx, [parallel, {repeat, 1}], [duplicate_sender, duplicate_receiver]}, 
+        {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]}
     ].
 
 %--------------------------
@@ -84,6 +89,12 @@ init_per_group(timeout_scenario, Config) ->
 init_per_group(tag_verification_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node2Address, ?BigPayload, Config);
 %--------------------------
+init_per_group(duplicate_tx_rx, Config) ->
+    init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
+%--------------------------
+init_per_group(multiple_hop_tx_rx, Config) ->
+    init_per_group_setup(?Node1Address, ?Node4Address, ?Payload, Config);
+%--------------------------
 init_per_group(_, Config) ->
     Config.
 
@@ -108,6 +119,7 @@ init_per_group_setup(Src, Dst, Payload, Config) ->
         {node1_mac_address, ?Node1MacAddress},
         {node2_mac_address, ?Node2MacAddress},
         {node3_mac_address, ?Node3MacAddress}, 
+        {node4_mac_address, ?Node4MacAddress}, 
         {ipv6_packet, Packet}
         | Config
     ].
@@ -151,6 +163,13 @@ defaut_receiver3_init_per_testcase(Config, RoutingTable)->
     Callback = fun lowpan_layer:input_callback/4,
     Node = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, RoutingTable),
     [{node3, Node} | Config].
+
+defaut_receiver4_init_per_testcase(Config, RoutingTable)->
+    Network = ?config(network, Config),
+    Node4MacAddress = ?config(node4_mac_address, Config),
+    Callback = fun lowpan_layer:input_callback/4,
+    Node = lowpan_node:boot_lowpan_node(node4, Network, Node4MacAddress, Callback, RoutingTable),
+    [{node4, Node} | Config].
 
 %--------------------------
 init_per_testcase(simple_pckt_sender, Config)->
@@ -231,6 +250,26 @@ init_per_testcase(tag_verification_receiver, Config) ->
     defaut_receiver2_init_per_testcase(Config, ?Default_routing_table);
 
 %--------------------------
+init_per_testcase(duplicate_sender, Config) ->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
+
+init_per_testcase(duplicate_receiver, Config) ->
+    defaut_receiver2_init_per_testcase(Config, ?Default_routing_table);
+
+%--------------------------
+init_per_testcase(multiple_hop_sender, Config) ->
+    defaut_sender_init_per_testcase(Config, ?Node1_multiple_hop_routing_table);
+
+init_per_testcase(multiple_hop_receiver2, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Node2_multiple_hop_routing_table); 
+
+init_per_testcase(multiple_hop_receiver3, Config)->
+    defaut_receiver3_init_per_testcase(Config, ?Node3_multiple_hop_routing_table); 
+
+init_per_testcase(multiple_hop_receiver4, Config) ->
+    defaut_receiver4_init_per_testcase(Config, ?Node4_multiple_hop_routing_table);
+
+%--------------------------
 init_per_testcase(_, Config) ->
             Config.
   
@@ -264,6 +303,7 @@ simple_pckt_receiver(Config) ->
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
     PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
+    io:format("CompressedHeader ~p~n",[CompressedHeader]),
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
     ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
@@ -395,17 +435,13 @@ big_pyld_routing_receiver3(Config) ->
 %-------------------------------------------------------------------------------
 discarded_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
-    Node1MacAddress = ?config(node1_mac_address, Config),
-    Node2MacAddress = ?config(node2_mac_address, Config),
-    Node3MacAddress = ?config(node3_mac_address, Config),
-
     MeshHeader =
         #mesh_header{
             v_bit = 0,
             f_bit = 0,
             hops_left = 1,
-            originator_address = Node1MacAddress,
-            final_destination_address = Node3MacAddress
+            originator_address =?node1_addr,
+            final_destination_address = ?node3_addr
         },
 
     BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
@@ -416,7 +452,8 @@ discarded_sender(Config) ->
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
-    MacHdr = #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},
+    MacHdr = #mac_header{src_addr =?node1_addr, 
+                            dest_addr = ?node2_addr},
 
     ok = erpc:call(Node1, lowpan_layer, tx, [Datagram, FC, MacHdr]),
     ct:pal("Packet with 1 hop left sent successfully from node1 to node3"),
@@ -436,16 +473,13 @@ discarded_receiver(Config) ->
 %-------------------------------------------------------------------------------
 no_hoplft_dst_reached_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
-    Node1MacAddress = ?config(node1_mac_address, Config),
-    Node2MacAddress = ?config(node2_mac_address, Config),
-
     MeshHeader =
         #mesh_header{
             v_bit = 0,
             f_bit = 0,
             hops_left = 0,
-            originator_address = Node1MacAddress,
-            final_destination_address = Node2MacAddress
+            originator_address =?node1_addr,
+            final_destination_address = ?node2_addr
         },
 
     BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
@@ -456,7 +490,8 @@ no_hoplft_dst_reached_sender(Config) ->
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
-    MacHdr = #mac_header{src_addr = Node1MacAddress, dest_addr = Node2MacAddress},
+    MacHdr = #mac_header{src_addr =?node1_addr, 
+                            dest_addr = ?node2_addr},
 
     ok = erpc:call(Node1, lowpan_layer, tx, [Datagram, FC, MacHdr]),
     ct:pal("Packet with 0 hop left sent successfully from node1 to node2"),
@@ -512,26 +547,26 @@ same_tag_different_senders_sender(Config) ->
             v_bit = 0,
             f_bit = 0,
             hops_left = 14,
-            originator_address = ?Node1MacAddress,
-            final_destination_address = ?Node3MacAddress
+            originator_address = ?node1_addr,
+            final_destination_address = ?node3_addr
         },
 
     BinMeshHeader1 = lowpan:build_mesh_header(MeshHeader1),
 
-    % Send fragments from Node1
     FC1 = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
-    MH1 = #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node3MacAddress},
+    MH1 = #mac_header{src_addr = ?node1_addr, 
+                        dest_addr = ?node3_addr},
 
     MeshHeader2 =
         #mesh_header{
             v_bit = 0,
             f_bit = 0,
             hops_left = 14,
-            originator_address = ?Node2MacAddress,
-            final_destination_address = ?Node3MacAddress
+            originator_address = ?node2_addr,
+            final_destination_address = ?node3_addr
         },
 
     BinMeshHeader2 = lowpan:build_mesh_header(MeshHeader2),
@@ -539,7 +574,8 @@ same_tag_different_senders_sender(Config) ->
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
-    MH2 = #mac_header{src_addr = ?Node2MacAddress, dest_addr = ?Node3MacAddress},
+    MH2 = #mac_header{src_addr = ?node2_addr, 
+                        dest_addr = ?node3_addr},
 
     ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader1/binary, Frag1/bitstring>>, FC1, MH1]),
     ok = erpc:call(Node2, lowpan_layer, tx, [<<BinMeshHeader2/binary, Frag1/bitstring>>, FC2, MH2]),
@@ -596,8 +632,8 @@ timeout_sender(Config) ->
             v_bit = 0,
             f_bit = 0,
             hops_left = 14,
-            originator_address = ?Node1MacAddress,
-            final_destination_address = ?Node2MacAddress
+            originator_address = ?node1_addr,
+            final_destination_address = ?node2_addr
         },
 
     BinMeshHeader1 = lowpan:build_mesh_header(MeshHeader1),
@@ -606,7 +642,8 @@ timeout_sender(Config) ->
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
-    MH1 = #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress},
+    MH1 = #mac_header{src_addr = ?node1_addr, 
+                        dest_addr = ?node2_addr},
     
 
 
@@ -657,3 +694,110 @@ tag_verification_receiver(Config) ->
 
     ct:pal("Big payload received successfully at node2"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+
+%-------------------------------------------------------------------------------
+% Send duplicate fragment to node 2
+%-------------------------------------------------------------------------------
+duplicate_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+
+    Data1 = <<"Hello ">>,
+    Data2 = <<"World!">>,
+    PayloadLen = byte_size(Data1) + byte_size(Data2),
+
+    FragHeader1 = #frag_header{
+        frag_type = ?FRAG1_DHTYPE,
+        datagram_size = PayloadLen,
+        datagram_tag = 25,
+        datagram_offset = 0
+    },
+    FragHeader2 = #frag_header{
+        frag_type = ?FRAGN_DHTYPE,
+        datagram_size = PayloadLen,
+        datagram_tag = 25,
+        datagram_offset = 1
+    },
+
+    Frag1 = lowpan:build_datagram_pckt(FragHeader1, Data1),
+    Frag2 = lowpan:build_datagram_pckt(FragHeader2, Data2),
+
+    MeshHeader =
+        #mesh_header{
+            v_bit = 0,
+            f_bit = 0,
+            hops_left = 14,
+            originator_address = ?node1_addr,
+            final_destination_address = ?node2_addr
+        },
+
+    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+
+    FC = #frame_control{ack_req = ?ENABLED, 
+                        frame_type = ?FTYPE_DATA,
+                        src_addr_mode = ?EXTENDED,
+                        dest_addr_mode = ?EXTENDED},
+    MH = #mac_header{src_addr = ?node1_addr, 
+                        dest_addr = ?node2_addr},
+
+    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]),
+    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]), % duplicated fragment
+    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag2/bitstring>>, FC, MH]),
+
+    ct:pal("Fragments sent from node1 and node2 to node3 with the same tag"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+%-------------------------------------------------------------------------------
+% Reception of payloads from node 1 and node 2 by node 3 with the same tag
+%-------------------------------------------------------------------------------
+duplicate_receiver(Config) ->
+    {Pid2, Node2} = ?config(node2, Config),
+
+    ReceivedData1 = erpc:call(Node2, lowpan_layer, frame_reception, []),
+
+    ExpectedData = <<"Hello World!">>,
+    io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedData, ReceivedData1]),
+    ReceivedData1 = ExpectedData,
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
+ 
+
+%-------------------------------------------------------------------------------
+% Send a packet that needs routing from node 1 to node 4
+%-------------------------------------------------------------------------------
+multiple_hop_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ct:pal("multi hop packet sent successfully from node1 to node4"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+%-------------------------------------------------------------------------------
+% Reception of a routed packet
+%-------------------------------------------------------------------------------
+multiple_hop_receiver2(Config) ->
+    {Pid2, Node2} = ?config(node2, Config),
+    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+
+multiple_hop_receiver3(Config) ->
+    {Pid3, Node3} = ?config(node3, Config),
+    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node3, Pid3).
+
+multiple_hop_receiver4(Config) ->
+    {Pid4, Node4}  = ?config(node4, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
+    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    Payload = PcktInfo#ipv6PckInfo.payload,
+    CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
+
+    ReceivedData = erpc:call(Node4, lowpan_layer, frame_reception, []),
+
+    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    ReceivedData = CompressedIpv6Packet,
+
+    ct:pal("Routed packet received successfully at node4"),
+    lowpan_node:stop_lowpan_node(Node4, Pid4).

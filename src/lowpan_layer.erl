@@ -12,27 +12,12 @@
 
 %---------- API Functions --------------------------------------------------------------
 init(Params) ->
-    CurrNodeMacAdd = maps:get(node_mac_addr, Params),
+    
+    MacAdd = maps:get(node_mac_addr, Params),
+    CurrNodeMacAdd = lowpan:generate_EUI64_mac_addr(MacAdd), % Convert mac address to valid 64-bit address
+    io:format("Current node address: ~p~n",[CurrNodeMacAdd]),
     setup_node_info_ets(),
     set_nodeData_value(currNodeMacAdd, CurrNodeMacAdd),
-
-    DatagramMap = ets:new(datagram_map, [named_table, public]),
-
-    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => DatagramMap, fragment_tag => ?DEFAULT_TAG_VALUE},
-    {ok, idle_state, Data}.
-
--spec start_link(Params :: #{}) -> {ok, pid()} | {error, any()}.
-start_link(Params) ->
-    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
-
-% Starts statem
-start(Params) ->
-    gen_statem:start({local, ?MODULE}, ?MODULE, Params, []),
-    io:format("~p: 6lowpan layer successfully launched~n", [node()]),
-
-    CurrNodeMacAdd = maps:get(node_mac_addr, Params),
-    io:format("Current node mac address: ~p~n", [CurrNodeMacAdd]),
-    ieee802154_setup(CurrNodeMacAdd), % comment when testing
 
     RoutingTable  = maps:get(routing_table, Params),
 
@@ -44,7 +29,23 @@ start(Params) ->
             exit({error, Reason})
     end, 
 
-    io:format("----------------------------------------------------------------------------------------~n").
+    ieee802154_setup(CurrNodeMacAdd),
+
+    DatagramMap = ets:new(datagram_map, [named_table, public]),
+
+    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => DatagramMap, fragment_tag => ?DEFAULT_TAG_VALUE},
+    io:format("~p: 6lowpan layer successfully launched~n", [node()]),
+
+    io:format("----------------------------------------------------------------------------------------~n"),
+    {ok, idle_state, Data}.
+
+-spec start_link(Params :: #{}) -> {ok, pid()} | {error, any()}.
+start_link(Params) ->
+    gen_statem:start_link({local, ?MODULE}, ?MODULE, Params, []).
+
+% Starts statem
+start(Params) ->
+    gen_statem:start({local, ?MODULE}, ?MODULE, Params, []).
 
 stop_link() ->
     gen_statem:stop(?MODULE).
@@ -100,11 +101,9 @@ frame_reception() ->
             ets:delete(DatagramMap, EntryKey),
             io:format("Entry deleted~n"),
             reassembly_timeout
-    after 15000 ->
+    after 70000 ->
         error_timeout
     end.
-
-
 
 %-------------------------------------------------------------------------------
 % Get any datagram from ieee802154 and return additional info (frag_header, ...)
@@ -161,7 +160,7 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo,OriginatorAddr, FinalDstMacAdd, CurrNo
 
     case DestAdd of
         CurrNodeMacAdd ->
-            io:format("Destination node reached, Forwarding to lowpan layer~n"),
+            io:format("Final destination node reached, Forwarding to lowpan layer~n"),
             Rest = lowpan:remove_mesh_header(Datagram),
             gen_statem:cast(?MODULE, {new_frame, OriginatorAddr, Rest});
         ?BroadcastAdd ->
@@ -224,7 +223,7 @@ idle_state({call, From}, {tx_frame, Frame, FrameControl, MacHeader}, Data) ->
 %-------------------------------------------------------------------------------
 % state: dtg_tx, in this state, the node transmit uncomp packet to ieee802154
 %-------------------------------------------------------------------------------
-idle_state({call, From}, {dtg_tx, Ipv6Pckt, FrameControl, MacHeader}, Data) ->
+idle_state({call, From}, {tx_datagram, Ipv6Pckt, FrameControl, MacHeader}, Data) ->
     Frame = <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>,
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
     case Transmit of
@@ -273,10 +272,12 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
     case FragReq of
         true ->
             Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC, Tag),
-            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => Tag+1}, [{reply, From, Response}]};
+            NewTag = Tag+1 rem ?MAX_TAG_VALUE,
+            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => NewTag}, [{reply, From, Response}]};
         false ->
             Response = send_fragment(RouteExist, Fragments, MeshedHdrBin, MH, FC, Tag),
-            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => Tag+1}, [{reply, From, Response}]}; 
+            NewTag = Tag+1 rem ?MAX_TAG_VALUE,
+            {next_state, idle_state, Data#{fragments => Fragments, fragment_tag => NewTag}, [{reply, From, Response}]}; 
         size_err -> 
             io:format("The datagram size exceed the authorized length~n"),
             {next_state, idle_state, Data, [{reply, From, error_frag_size}]}
@@ -402,6 +403,7 @@ send_fragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC, Tag) ->
             end,
     io:format("Sending ~p bytes~n", [byte_size(Pckt)]),
     MacHeader = MH#mac_header{seqnum = Tag},
+    io:format("MH ~p~n",[MH]),
     case ieee802154:transmission({FC, MacHeader, Pckt}) of
         {ok, _} ->
             ok;
@@ -443,14 +445,12 @@ update_datagram(MeshInfo, Datagram, Data) ->
             {discard, discard_datagram(Datagram, Data)};
         _ ->
             Payload = MeshInfo#meshInfo.payload,
-            OrigAdd = lowpan:convert_addr_to_bin(MeshInfo#meshInfo.originator_address),
-            DestAdd = lowpan:convert_addr_to_bin(MeshInfo#meshInfo.final_destination_address),
             MeshHeader =
                 #mesh_header{v_bit = MeshInfo#meshInfo.v_bit,
                              f_bit = MeshInfo#meshInfo.f_bit,
                              hops_left = HopsLft,
-                             originator_address = OrigAdd,
-                             final_destination_address = DestAdd},
+                             originator_address = MeshInfo#meshInfo.originator_address,
+                             final_destination_address =  MeshInfo#meshInfo.final_destination_address},
 
             BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
             <<BinMeshHeader/binary, Payload/bitstring>>
@@ -469,12 +469,11 @@ forward_datagram(Frame, FrameControl, MacHeader, Data) ->
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
     case Transmit of
         {ok, _} ->
-            io:format("Packet sent successfully~n"),
-            {next_state, idle_state, Data};
+            io:format("Packet sent successfully~n");    
         {error, Error} ->
-            io:format("Transmission error: ~p~n", [Error]),
-            {next_state, idle_state, Data}
-    end. 
+            io:format("Transmission error: ~p~n", [Error])
+    end,
+    {next_state, idle_state, Data}.
 
 
 
@@ -502,12 +501,10 @@ get_nodeData_value(Key) ->
 %-------------------------------------------------------------------------------
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        phy_layer = mock_phy_network,
+        phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_layer:input_callback/4
     }),
-
-    io:format("~p IEEE 802.15.4 layer successfully launched ~n",[node()]),
 
     case application:get_env(robot, pan_id) of
         {ok, PanId} ->
@@ -521,7 +518,8 @@ ieee802154_setup(MacAddr)->
         ?SHORT_ADDR_LEN -> ieee802154:set_pib_attribute(mac_short_address, MacAddr)
     end, 
 
-    ieee802154:rx_on().
+    ieee802154:rx_on(), 
+    io:format("~p IEEE 802.15.4 layer successfully launched ~n",[node()]).
 
 callback_mode() ->
     [state_functions].

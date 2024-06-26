@@ -71,11 +71,11 @@
 
 -define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
 -define(MAX_FRAG_SIZE, 2047). % 11 bits datagram_size
--define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
+-define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 -define(MAX_TAG_VALUE, 65535).
--define(DEFAULT_TAG_VALUE, 2#00000000000).
+-define(DEFAULT_TAG_VALUE, 2#0000000000000000).
 
 -record(additional_info, 
         {datagram_size, 
@@ -155,9 +155,26 @@
 
 
 -define(Max_Hops, 10).
--define(node1_addr, <<16#CAFEDECA00000001:64>>).
--define(node2_addr, <<16#CAFEDECA00000002:64>>).
--define(node3_addr, <<16#CAFEDECA00000003:64>>).
+
+-define(Node1MacAddress, <<16#CAFEDECA00000001:64>>).
+-define(Node2MacAddress, <<16#CAFEDECA00000002:64>>).
+-define(Node3MacAddress, <<16#CAFEDECA00000003:64>>).
+-define(Node4MacAddress, <<16#CAFEDECA00000004:64>>).
+
+% Used to test 16-bit node addresses 
+% -define(Node1MacAddress, <<16#0001:16>>).
+% -define(Node2MacAddress, <<16#0002:16>>).
+% -define(Node3MacAddress, <<16#0003:16>>).
+
+
+-define(node1_addr,
+        lowpan:generate_EUI64_mac_addr(?Node1MacAddress)).
+-define(node2_addr, 
+        lowpan:generate_EUI64_mac_addr(?Node2MacAddress)).
+-define(node3_addr,
+        lowpan:generate_EUI64_mac_addr(?Node3MacAddress)).
+-define(node4_addr,
+        lowpan:generate_EUI64_mac_addr(?Node4MacAddress)).
 
 -define(Default_routing_table,
         #{?node1_addr => ?node1_addr,
@@ -178,5 +195,3 @@
         #{?node1_addr => ?node2_addr,
           ?node2_addr => ?node2_addr,
           ?node3_addr => ?node3_addr}).
-
-

@@ -1,0 +1,185 @@
+%%%%%%%%%%%%%%%%%%% NODE1 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+1> robot:msh_big_pckt_tx().
+robot:msh_big_pckt_tx().
+New packet transmission 
+Final destination: <<200,254,222,202,0,0,0,3>>
+Compressed packet size: 394 bytes
+The received Ipv6 packet need fragmentation to be transmitted
+Routing check...
+Next hop found: <<200,254,222,202,0,0,0,2>>
+New mesh header created: {mesh_header,2,0,0,10,
+                                      <<200,254,222,202,0,0,0,1>>,
+                                      <<200,254,222,202,0,0,0,3>>}
+1th fragment: 96 bytes sent
+2th fragment: 97 bytes sent
+3th fragment: 97 bytes sent
+4th fragment: 97 bytes sent
+5th fragment: 97 bytes sent
+6th fragment: 41 bytes sent
+ok
+
+
+%%%%%%%%%%%%%%%%%%% NODE2 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+nonode@nohost waiting to receive data... 
+New frame received
+<<138,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,193,138,0,0,122,17,10,
+  200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,104,117,110,107,95,48,49,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,2>>
+The datagram needs to be meshedSearching next hop in the routing table...Direct link found
+Forwarding to node: <<200,254,222,202,0,0,0,3>
+>------------------------------------------------------
+Packet sent successfully
+
+
+New frame received
+<<138,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,2,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,99,104,117,110,107,95,48,51,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,2>>
+The datagram needs to be meshedSearching next hop in the routing table...Direct link found
+Forwarding to node: <<200,254,222,202,0,0,0,3>>
+------------------------------------------------------
+Packet sent successfully
+
+
+New frame received
+<<138,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,4,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,99,104,117,110,107,95,48,53,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,2>>
+The datagram needs to be meshedSearching next hop in the routing table...Direct link found
+Forwarding to node: <<200,254,222,202,0,0,0,3>>
+------------------------------------------------------
+Packet sent successfully
+
+
+New frame received
+<<138,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,5,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,2>>
+The datagram needs to be meshedSearching next hop in the routing table...Direct link found
+Forwarding to node: <<200,254,222,202,0,0,0,3>>
+------------------------------------------------------
+Packet sent successfully
+
+
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+nonode@nohost waiting to receive data... 
+
+
+%%%%%%%%%%%%%%%%%%% NODE3 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+nonode@nohost waiting to receive data... 
+New frame received
+<<137,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,193,138,0,0,122,17,10,
+  200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,104,117,110,107,95,48,49,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,3>>
+Destination node reached, Forwarding to lowpan layer
+Storing fragment
+------------------------------------------------------
+DatagramMap after update:
+{<<200,254,222,202,0,0,0,1>>,0} -> {datagram, 0, 394, 75,
+    #{
+        0 => <<122,17,10,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,
+               104,117,110,107,95,48,49,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97>>,
+    }, 567996125}
+------------------------------------------------------
+Uncomplete first datagram, waiting for other fragments 
+----------------------------------------------------------------------------------------
+
+
+New frame received
+<<137,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,2,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,99,104,117,110,107,95,48,51,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,3>>
+Destination node reached, Forwarding to lowpan layer
+Storing fragment
+------------------------------------------------------
+DatagramMap after update:
+{<<200,254,222,202,0,0,0,1>>,0} -> {datagram, 0, 394, 150,
+    #{
+        0 => <<122,17,10,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,
+               104,117,110,107,95,48,49,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97>>,
+        2 => <<"aaaaaaaaaaaaaaaaaaachunk_03aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">>,
+    }, 567996126}
+------------------------------------------------------
+Uncomplete datagram, waiting for other fragments 
+----------------------------------------------------------------------------------------
+
+
+New frame received
+<<137,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,4,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,99,104,117,110,107,95,48,53,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,3>>
+Destination node reached, Forwarding to lowpan layer
+Storing fragment
+------------------------------------------------------
+DatagramMap after update:
+{<<200,254,222,202,0,0,0,1>>,0} -> {datagram, 0, 394, 225,
+    #{
+        0 => <<122,17,10,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,
+               104,117,110,107,95,48,49,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97>>,
+        2 => <<"aaaaaaaaaaaaaaaaaaachunk_03aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">>,
+        4 => <<"aaaaaaaaaaaaaaaaaaachunk_05aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">>,
+    }, 567996126}
+------------------------------------------------------
+Uncomplete datagram, waiting for other fragments 
+----------------------------------------------------------------------------------------
+
+
+New frame received
+<<137,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,225,138,0,0,5,97,97,97,
+  97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97>>
+Final destination address: <<200,254,222,202,0,0,0,3>>
+Current node address     : <<200,254,222,202,0,0,0,3>>
+Destination node reached, Forwarding to lowpan layer
+Storing fragment
+------------------------------------------------------
+DatagramMap after update:
+{<<200,254,222,202,0,0,0,1>>,0} -> {datagram, 0, 394, 244,
+    #{
+        0 => <<122,17,10,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,99,
+               104,117,110,107,95,48,49,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,97,
+               97,97,97,97,97,97,97,97,97,97,97,97,97,97>>,
+        2 => <<"aaaaaaaaaaaaaaaaaaachunk_03aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">>,
+        4 => <<"aaaaaaaaaaaaaaaaaaachunk_05aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa">>,
+        5 => <<"aaaaaaaaaaaaaaaaaaa">>,
+    }, 567996126}
+------------------------------------------------------
+Uncomplete datagram, waiting for other fragments 
+----------------------------------------------------------------------------------------
+
+Reassembly timeout for entry {<<200,254,222,202,0,0,0,1>>,0}
+Entry deleted
+nonode@nohost waiting to receive data... 

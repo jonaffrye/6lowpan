@@ -7,7 +7,7 @@
     reassemble/1, store_fragment/8,create_iphc_pckt/2, get_ipv6_pkt/2, datagram_info/1,
     compress_ipv6_header/1, build_datagram_pckt/2, build_firstFrag_pckt/5,
     get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
-    decompress_ipv6_header/2, get_default_LL_add/1, encode_integer/1,
+    decompress_ipv6_header/2, encode_integer/1,
     tuple_to_bin/1, build_frag_header/1, get_next_hop/3, print_as_binary/1,
     hex_to_binary/1, complete_with_padding/1, generate_chunks/0,generate_chunks/1,
     build_mesh_header/1, get_mesh_info/1, contains_mesh_header/1,
@@ -16,7 +16,7 @@
     get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,
     generate_LL_addr/1, create_new_mesh_header/2, create_new_mesh_datagram/3,
     remove_mesh_header/1, convert_addr_to_bin/1, 
-    check_tag_unicity/2
+    check_tag_unicity/2, get_16bit_mac_addr/1
 ]).
 
 
@@ -233,7 +233,6 @@ process_sac(SrcAdd) ->
 
     case Prefix of
         ?LINK_LOCAL_PREFIX ->
-            % link-local
             0;
         ?MULTICAST_PREFIX ->
             1;
@@ -274,6 +273,7 @@ process_sam(SAC, _, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 0 ->
                 % the first 112 bits are elided, last 16 IID bits are carried in-line
                 UpdatedList};
         <<?LINK_LOCAL_PREFIX:16, 0:48, _:64>> ->
+            
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
@@ -532,7 +532,7 @@ compress_udp_header(UdpPckt, CarriedInline) ->
     {P, CarriedInlineList} = process_udp_ports(SrcPort, DstPort, CarriedInline),
     {C, CarriedIn} = process_udp_checksum(Checksum, CarriedInlineList),
 
-    io:format("C: ~p~nP: ~p~n", [C, P]),
+    %io:format("C: ~p~nP: ~p~n", [C, P]),
     Inline = list_to_binary(CarriedIn),
 
     CompressedUdpHeader = <<?UDP_DHTYPE:5, C:1, P:2, Inline/bitstring>>,
@@ -1267,21 +1267,23 @@ build_mesh_header(MeshHeader) ->
         originator_address = OriginatorAddress,
         final_destination_address = FinalDestinationAddress
     } = MeshHeader,
+    <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
+                 OriginatorAddress/binary, FinalDestinationAddress/binary>>.
 
-    case {VBit, FBit} of
-        {0, 0} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
-        {0, 1} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
-        {1, 0} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress/binary, FinalDestinationAddress/binary>>;
-        {1, 1} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
-                OriginatorAddress/binary, FinalDestinationAddress/binary>>
-    end.
+    % case {VBit, FBit} of
+    %     {0, 0} -> % TODO, depending on VBit and FBit => 16 or 64 bit addr
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
+    %             OriginatorAddress:64, FinalDestinationAddress:64>>;
+    %     {0, 1} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
+    %             OriginatorAddress:64, FinalDestinationAddress:16>>;
+    %     {1, 0} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
+    %             OriginatorAddress:16, FinalDestinationAddress:64>>;
+    %     {1, 1} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, 
+    %             OriginatorAddress:16, FinalDestinationAddress:16>>
+    % end.
 
 %-------------------------------------------------------------------------------
 % Creates new mesh header and returns new datagram
@@ -1383,9 +1385,8 @@ contains_mesh_header(Datagram) ->
 % Remove mesh header if the datagram was meshed (used in put and reasssemble)
 %-------------------------------------------------------------------------------
 remove_mesh_header(Datagram) ->
-    <<Type:2, _RestOfHeader:134, Rest/bitstring>> = Datagram,
-    case Type of
-        ?MESH_DHTYPE ->
+    case Datagram of
+        <<?MESH_DHTYPE:2, _Header:134, Rest/bitstring>> ->
             Rest;
         _ ->
             Datagram
@@ -1418,17 +1419,13 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress) ->
 %-------------------------------------------------------------------------------
 % Generate a EUI64 address from the mac address
 %-------------------------------------------------------------------------------
-generate_EUI64_mac_addr(MacAddress)->
-    case byte_size(MacAddress) of
-        ?SHORT_ADDR_LEN -> 
-            io:format("Convert short 16bit addr~n"),
-            get_EUI64_from_short_mac(MacAddress);
-        ?EXTENDED_ADDR_LEN ->
-            io:format("Convert extended 64bit addr~n"), 
-            get_EUI64_from_extended_mac(MacAddress)
+generate_EUI64_mac_addr(MacAddress) when byte_size(MacAddress) == ?SHORT_ADDR_LEN->
+    %io:format("Converting short 16bit addr...~n"),
+    get_EUI64_from_short_mac(MacAddress);
+generate_EUI64_mac_addr(MacAddress) when byte_size(MacAddress) == ?EXTENDED_ADDR_LEN->
+    %io:format("Converting extended 64bit addr...~n"), 
+    get_EUI64_from_extended_mac(MacAddress).
             
-    end. 
-
 %-------------------------------------------------------------------------------
 % Generate a EUI64 address from the 48bit mac address
 %-------------------------------------------------------------------------------
@@ -1454,24 +1451,17 @@ get_EUI64_from_short_mac(MacAddress)->
     PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
     Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
     <<A:8, Rest:40>> = Extended48Bit, 
-    ULBSetup = A band 16#FD, % replace 7th bit of first byte by 0
+    ULBSetup = A band 16#FD, % replace 7th bit of first byte (U/L) by 0
     <<First:16, Last:24>> = <<Rest:40>>,
     EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
     EUI64.
-
-%-------------------------------------------------------------------------------
-% Generate a link-local address by adding 0 padding to the mac adress
-%-------------------------------------------------------------------------------
-get_default_LL_add(MacAddr)->
-    LLAdd = <<16#FE80:16, 0:48, MacAddr/binary>>,
-    LLAdd.
 
 %-------------------------------------------------------------------------------
 % Stateless link local address generation
 %-------------------------------------------------------------------------------
 generate_LL_addr(MacAddress)->
     EUI64 = generate_EUI64_mac_addr(MacAddress),
-    LLAdd = <<16#FE80:16, 0:46, EUI64/binary>>,
+    LLAdd = <<16#FE80:16, 0:48, EUI64/binary>>,
     LLAdd.
 
 %-------------------------------------------------------------------------------
@@ -1479,6 +1469,13 @@ generate_LL_addr(MacAddress)->
 %-------------------------------------------------------------------------------
 get_EUI64_mac_addr(Address) ->
     <<_:64, MacAddr:64/bitstring>> = <<Address:128>>,
+    MacAddr.
+
+%-------------------------------------------------------------------------------
+% Retrieve mac shor address from Ipv6 address
+%-------------------------------------------------------------------------------
+get_16bit_mac_addr(Address) ->
+    <<_:112, MacAddr:16/bitstring>> = <<Address:128>>,
     MacAddr.
 
 

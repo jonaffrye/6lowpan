@@ -14,6 +14,7 @@
     tx_msh_iphc_pckt/0,
     tx_msh_frag_iphc_pckt/0,
     msh_pckt_tx/0,
+    msh_big_pckt_tx/0,
     rx/0
 ]).
 
@@ -135,8 +136,8 @@ tx() ->
 tx_big_payload() ->
     Payload = lowpan:generate_chunks(),
 
-    Node1Address = lowpan:get_default_LL_add(?Node1MacAddress),
-    Node2Address = lowpan:get_default_LL_add(?Node2MacAddress),
+    Node1Address = lowpan:generate_LL_addr(?Node1MacAddress),
+    Node2Address = lowpan:generate_LL_addr(?Node2MacAddress),
     PayloadLength = byte_size(Payload),
 
     IPv6Header =
@@ -190,13 +191,32 @@ msh_pckt_tx() ->
             traffic_class = 0,
             flow_label = 0,
             payload_length = ?PayloadLength,
-            next_header = 17,
+            next_header = 10,
             hop_limit = 64,
             source_address = ?Node1Address,
             destination_address = ?Node3Address
         },
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, ?Payload),
+    lowpan_layer:send_packet(Ipv6Pckt).
+
+%-------------------------------------------------------------------------------
+% Transmission of big packet that needs routing
+%-------------------------------------------------------------------------------
+msh_big_pckt_tx() ->
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = ?PayloadLength,
+            next_header = 10,
+            hop_limit = 64,
+            source_address = ?Node1Address,
+            destination_address = ?Node3Address
+        },
+
+    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, ?BigPayload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -244,7 +264,7 @@ start(_Type, _Args) ->
 
     %ieee802154_setup(NodeMacAddr),
 
-    lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
+    lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Node1_routing_table}),
     {ok, Supervisor}.
 
 % @private

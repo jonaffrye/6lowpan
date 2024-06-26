@@ -2,15 +2,15 @@
 
 %----------------------------------------------Common value for testing purpose---------------------------------------------
 
--define(Node1MacAddress, <<16#CAFEDECA00000001:64>>).
--define(Node2MacAddress, <<16#CAFEDECA00000002:64>>).
--define(Node3MacAddress, <<16#CAFEDECA00000003:64>>).
 -define(Payload, <<"Hello world this is an ipv6 packet for testing purpose">>).
 -define(BigPayload, lowpan:generate_chunks()).
 -define(PayloadLength, byte_size(?Payload)).
--define(Node1Address, lowpan:get_default_LL_add(?Node1MacAddress)).
--define(Node2Address, lowpan:get_default_LL_add(?Node2MacAddress)).
--define(Node3Address, lowpan:get_default_LL_add(?Node3MacAddress)).
+
+-define(Node1Address, lowpan:generate_LL_addr(?Node1MacAddress)). % generates a link local address based on the mac address
+-define(Node2Address, lowpan:generate_LL_addr(?Node2MacAddress)).
+-define(Node3Address, lowpan:generate_LL_addr(?Node3MacAddress)).
+-define(Node4Address, lowpan:generate_LL_addr(?Node4MacAddress)).
+
 -define(IPv6Header, #ipv6_header{
     version = 6,
     traffic_class = 0,
@@ -28,3 +28,21 @@
 }).
 -define(Ipv6Pckt, ipv6:build_ipv6_packet(?IPv6Header, ?Payload)).
 -define(MacHeader, #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).
+
+
+% ---------------- multiple hop Routing tables-----------
+
+-define(Node1_multiple_hop_routing_table,
+        #{?node4_addr => ?node2_addr}).
+
+-define(Node2_multiple_hop_routing_table,
+        #{?node4_addr => ?node3_addr}).
+
+-define(Node3_multiple_hop_routing_table,
+         #{?node4_addr => ?node4_addr}).
+
+-define(Node4_multiple_hop_routing_table,
+         #{?node4_addr => ?node4_addr,
+          ?node3_addr => ?node3_addr}).
+
+% ------------------------------------------------------
