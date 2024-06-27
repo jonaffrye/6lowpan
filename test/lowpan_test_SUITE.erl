@@ -11,7 +11,8 @@
     multicast_addr_pckt_comp/1, global_context_pckt_comp1/1, udp_nh_pckt_comp/1,
     tcp_nh_pckt_comp/1, icmp_nh_pckt_comp/1, unc_ipv6/1, iphc_pckt_16bit_addr/1,
     iphc_pckt_64bit_addr/1, msh_pckt/1, extended_EUI64_from_64mac/1, extended_EUI64_from_48mac/1,
-    extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1, multicast_addr_validity/1
+    extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1, multicast_addr_validity/1, 
+    broadcast_pckt/1
 ]).
 
 
@@ -35,7 +36,7 @@ all() ->
         iphc_pckt_16bit_addr,
         msh_pckt, extended_EUI64_from_64mac,extended_EUI64_from_48mac,
         extended_EUI64_from_16mac, check_tag_unicity, link_local_from_16mac, 
-        multicast_addr_validity
+        multicast_addr_validity, broadcast_pckt
     ].
 
 init_per_testcase(Config) ->
@@ -117,8 +118,6 @@ iphc_pckt_64bit_addr(_Config) ->
     IPHC = ExpectedHeader.
 
 msh_pckt(_Config) ->
-    %Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
-    %{CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
     MeshHeader =
         #mesh_header{
             v_bit = 0,
@@ -133,6 +132,29 @@ msh_pckt(_Config) ->
         <<?MESH_DHTYPE:2, 0:1, 0:1, 14:4, ?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
 
     ExpectedHeader = BinMeshHeader.
+
+
+broadcast_pckt(_Config) ->
+    DestMacAddr = lowpan:generate_EUI64_mac_addr(<<16#1234:16>>),
+    MeshHeader =
+        #mesh_header{
+            v_bit = 0,
+            f_bit = 0,
+            hops_left = 14,
+            originator_address = ?Node1MacAddress,
+            final_destination_address = DestMacAddr
+        },
+
+    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+
+    DestAddr = <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>,
+    DestAddress = binary:decode_unsigned(DestAddr),
+    {_, BroadcastHeader, _} = lowpan:get_next_hop(?Node1MacAddress, ?Node1MacAddress, DestMacAddr, DestAddress, 3, false),
+
+    ExpectedHeader = <<BinMeshHeader/bitstring, ?BC0_DHTYPE, 3:8>>,
+
+    io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedHeader, BroadcastHeader]),
+    ExpectedHeader = BroadcastHeader.
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------
 %                                                           Ipv6 Packet Compression

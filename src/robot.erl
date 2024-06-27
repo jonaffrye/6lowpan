@@ -15,7 +15,8 @@
     tx_msh_frag_iphc_pckt/0,
     msh_pckt_tx/0,
     msh_big_pckt_tx/0,
-    rx/0
+    rx/0, 
+    tx_broadcast_pckt/0
 ]).
 
 -export([start/2]).
@@ -122,6 +123,38 @@ tx_msh_frag_iphc_pckt() ->
     io:format("Datagram ~p~n", [Datagram]),
 
     lowpan_layer:tx(Datagram, ?FrameControl, ?MacHeader).
+
+
+%-------------------------------------------------------------------------------
+% Broadcast packet format verification
+%-------------------------------------------------------------------------------
+tx_broadcast_pckt() ->
+    Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    PcktLen = byte_size(Ipv6Pckt),
+
+    FragHeader =
+        #frag_header{
+            frag_type = ?FRAG1_DHTYPE,
+            datagram_size = PcktLen,
+            datagram_tag = 124
+        },
+
+    Frag = lowpan:build_first_frag_header(FragHeader),
+
+    DestMacAddr = lowpan:generate_EUI64_mac_addr(<<16#1234:16>>),
+
+    DestAddr = <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>,
+    DestAddress = binary:decode_unsigned(DestAddr),
+    {_, BroadcastHeader, _} = lowpan:get_next_hop(?Node1MacAddress, ?Node1MacAddress, DestMacAddr, DestAddress, 3, false),
+
+    Datagram =
+        <<BroadcastHeader/binary, Frag/binary, CompressedHeader/binary, ?Payload/bitstring>>,
+    io:format("Datagram ~p~n", [Datagram]),
+
+    MacHeader = #mac_header{src_addr = ?Node1MacAddress, dest_addr = DestMacAddr},
+    lowpan_layer:tx(Datagram, ?FrameControl, MacHeader).
+
 
 %-------------------------------------------------------------------------------
 % Simple transmission 

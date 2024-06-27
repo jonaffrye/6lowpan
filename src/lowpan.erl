@@ -1548,7 +1548,7 @@ generate_multicast_addr(DestAddress)->
 %    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 create_broadcast_header(SeqNum)->
-   BC0_Header = <<2#01,?BC0_DHTYPE, SeqNum:8>>,
+   BC0_Header = <<?BC0_DHTYPE, SeqNum:8>>,
    BC0_Header.
 
 
