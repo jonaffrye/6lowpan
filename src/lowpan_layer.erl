@@ -176,7 +176,7 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo,OriginatorAddr, FinalDstMacAdd, CurrNo
             io:format("Ack received"),
             io:format("------------------------------------------------------~n");
         _ ->
-            io:format("The datagram needs to be meshed"),
+            io:format("The datagram needs to be meshed~n"),
             gen_statem:cast(?MODULE, {forward_datagram, Datagram, IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, MH})
     end.
 
@@ -200,7 +200,7 @@ idle_state(cast, {forward_datagram, Datagram, IsMeshedPckt, MeshPckInfo, DstMacA
             {next_state, idle_state, Data};
         _ ->
             DestMacAddress = lowpan:convert_addr_to_bin(DstMacAdd),
-            io:format("Searching next hop in the routing table..."),
+            io:format("Searching next hop in the routing table...~n"),
             NextHopAddr = routing_table:get_route(DestMacAddress),
 
             case NextHopAddr of
@@ -317,12 +317,12 @@ idle_state(cast, {frame_info_rx, From}, Data) ->
 idle_state(cast, {new_frame, OriginatorAddr, Datagram}, Data = #{caller := From}) ->
     case Datagram of
         <<?IPHC_DHTYPE:3, _Rest/bitstring>> -> % compressed datagram
-            io:format("Received compressed datagram~n"),
+            io:format("Received a compressed datagram~n"),
             From ! {reassembled_packet, Datagram},
             {next_state, idle_state, Data};
 
         <<?IPV6_DHTYPE:8, Payload/bitstring>> -> % uncompressed IPv6 datagram
-            io:format("Received uncompressed IPv6 datagram~n"),
+            io:format("Received a uncompressed IPv6 datagram~n"),
             % Process uncompressed IPv6 datagram
             From ! {reassembled_packet, Payload},
             {next_state, idle_state, Data};
@@ -439,7 +439,7 @@ send_fragments(RouteExist, [{FragHeader, FragPayload} | Rest], Counter, MeshedHd
                 false ->
                     <<FragHeader/binary, FragPayload/bitstring>>
             end, 
-    timer:sleep(10),
+    %timer:sleep(10),
     MacHeader = MH#mac_header{seqnum = Tag+Counter},
     case ieee802154:transmission({FC, MacHeader, Pckt}) of
         {ok, _} ->
@@ -526,7 +526,7 @@ get_nodeData_value(Key) ->
 %-------------------------------------------------------------------------------
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        phy_layer = mock_phy_network, % uncomment when testing
+        %phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_layer:input_callback/4
     }),

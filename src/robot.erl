@@ -264,7 +264,7 @@ start(_Type, _Args) ->
 
     %ieee802154_setup(NodeMacAddr),
 
-    lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Node1_routing_table}),
+    lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
     {ok, Supervisor}.
 
 % @private
