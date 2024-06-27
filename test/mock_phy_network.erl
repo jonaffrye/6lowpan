@@ -67,10 +67,10 @@ reception() ->
 reception_async() ->
     case reception() of
         {error, _} = Err ->
-            ct:log("Error? : ~p", [Err]),
+            %ct:log("Error? : ~p", [Err]),
             Err;
         Frame ->
-            ct:log("Frame: ~p", [Frame]),
+            %ct:log("Frame: ~p", [Frame]),
             Metadata = get_rx_metadata(),
             ieee802154_events:rx_event(Frame, Metadata)
     end.
@@ -82,7 +82,7 @@ rx_(Timeout, TimeoutError) ->
         affrej ->
             {error, affrej};
         Ret ->
-            ct:log("ret: ~p", [Ret]),
+            %ct:log("ret: ~p", [Ret]),
             Ret
     end.
 
@@ -242,7 +242,7 @@ rx_on({call, From}, {disable_rx}, #{regs := Regs, timer := TimerRef} = Data) ->
     {next_state, idle, Data#{regs := NewRegs}, {reply, From, ok}};
 rx_on(info, {frame, Frame}, #{timer := TimerRef, regs := Regs, network := NetworkNode} = Data) ->
     erlang:cancel_timer(TimerRef),
-    ct:log("Received frame: ~p", [Frame]),
+   %ct:log("Received frame: ~p", [Frame]),
     NewRegs = handle_rx(Frame, NetworkNode, Regs),
     case Data#{regs := NewRegs} of
         #{waiting := From, regs:= #{sys_status := #{affrej := 0}}} ->
@@ -297,7 +297,7 @@ handle_event({call, From}, {write, Reg, Value}, #{regs := Regs} = Data) ->
 handle_event({call, From}, {get_conf}, #{conf := Conf} = Data) ->
     {keep_state, Data, {reply, From, Conf}};
 handle_event(info, Event, Data) ->
-    ct:log("Event skipped: ~p", [Event]),
+    %ct:log("Event skipped: ~p", [Event]),
     {keep_state, Data};
 handle_event(EventType, EventContent, _Data) ->
     error({unknown_event, EventType, EventContent}).
@@ -310,7 +310,7 @@ terminate(Reason, _) ->
 tx(Frame, Options, NetworkNode, Regs) ->
     Rng = Options#tx_opts.ranging,
     PhyFrame = {Rng, Frame},
-    ct:log("Tx frame ~p", [Frame]),
+    %ct:log("Tx frame ~p", [Frame]),
     {network_loop, NetworkNode} ! {tx, node(), PhyFrame},
     pmod_uwb_registers:update_reg(Regs, tx_fctrl, #{tr => Rng}).
 
@@ -319,7 +319,7 @@ enable_rx(Regs) ->
     pmod_uwb_registers:update_reg(NewRegs, sys_status, #{rxfcg => 0, affrej => 0}).
 
 handle_rx({_, <<_:5/bitstring, ?FTYPE_ACK:3, _/bitstring>>=RawFrame}, _, Regs) ->
-    ct:log("Received Ack"),
+    %ct:log("Received Ack"),
     NewRegs1 = pmod_uwb_registers:update_reg(Regs, sys_cfg, #{rxenab => ?DISABLED}),
     pmod_uwb_registers:update_reg(NewRegs1, rx_buffer, #{rx_buffer => RawFrame});
 handle_rx(Frame, NetworkNode, #{sys_cfg := #{ffen := ?ENABLED}} = Regs) ->

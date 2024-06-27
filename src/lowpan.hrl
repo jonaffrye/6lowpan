@@ -137,23 +137,28 @@
 
 -record(mesh_header,
         {mesh_type = ?MESH_DHTYPE,
-         v_bit,
-         f_bit,
-         hops_left,
-         originator_address,
-         final_destination_address}).
+         v_bit, % 1-bit field
+         f_bit, % 1-bit field
+         hops_left, % 4-bit field
+         originator_address, % link-layer address of the Originator
+         final_destination_address  % link-layer address of the Final Destination
+         %deep_hops_left = undefined 
+        }).
 
 -record(meshInfo,
         {version = 6,
-         v_bit,
-         f_bit,
-         hops_left,
-         originator_address,
+         v_bit, 
+         f_bit, 
+         hops_left, 
+         originator_address, 
          final_destination_address,
+         deep_hops_left,
          payload}).
 
 
--define(Max_Hops, 10).
+-define(Max_Hops, 2#1110). 
+-define(DeepHopsLeft, 16#F). % 0xF
+-define(Max_DeepHopsLeft, 2#11111111). % 8-bit Deep Hops Left
 
 -define(Node1MacAddress, <<16#CAFEDECA00000001:64>>).
 -define(Node2MacAddress, <<16#CAFEDECA00000002:64>>).

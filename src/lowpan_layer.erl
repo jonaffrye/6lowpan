@@ -6,7 +6,7 @@
 
 -export([init/1, start_link/1, start/1, stop_link/0, stop/0]).
 -export([idle_state/3, callback_mode/0]).
--export([send_packet/1, send_unc_datagram/3, tx/3]).
+-export([send_packet/1, send_unc_datagram/3, tx/3, extended_hopsleft_tx/1]).
 -export([frame_reception/0, frame_info_rx/0]).
 -export([input_callback/4]).
 
@@ -71,7 +71,22 @@ send_packet(Ipv6Pckt) ->
             io:format("Error, Source address cannot be a multicast address~n"),
             {error_multicast_src};
         _ ->
-            gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo})
+            Extended_hopsleft = false,
+            gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft})
+    end.
+
+extended_hopsleft_tx(Ipv6Pckt) ->
+    io:format("New packet transmission ~n"),
+    PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
+    SrcAddress = PcktInfo#ipv6PckInfo.sourceAddress,
+   
+    case <<SrcAddress:128>> of  % Check if the source address is multicast
+        <<16#FF:16, _:112>> ->
+            io:format("Error, Source address cannot be a multicast address~n"),
+            {error_multicast_src};
+        _ ->
+            Extended_hopsleft = true,
+            gen_statem:call(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft})
     end.
 
 %-------------------------------------------------------------------------------
@@ -170,8 +185,17 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo,OriginatorAddr, FinalDstMacAdd, CurrNo
     case DestAdd of
         CurrNodeMacAdd ->
             io:format("Final destination node reached, Forwarding to lowpan layer~n"),
-            Rest = lowpan:remove_mesh_header(Datagram),
-            gen_statem:cast(?MODULE, {new_frame, OriginatorAddr, Rest});
+            case IsMeshedPckt of
+                true -> 
+                    HopsLeft = MeshPckInfo#meshInfo.hops_left,
+                    Rest = lowpan:remove_mesh_header(Datagram,HopsLeft),
+                    gen_statem:cast(?MODULE, {new_frame, OriginatorAddr, Rest});
+                false-> 
+                    HopsLeft = 1,
+                    Rest = lowpan:remove_mesh_header(Datagram,HopsLeft),
+                    gen_statem:cast(?MODULE, {new_frame, OriginatorAddr, Rest})
+
+            end;
         ?BroadcastAdd ->
             io:format("Ack received"),
             io:format("------------------------------------------------------~n");
@@ -246,7 +270,7 @@ idle_state({call, From}, {tx_datagram, Ipv6Pckt, FrameControl, MacHeader}, Data)
 %-------------------------------------------------------------------------------
 % state: pckt_tx, in this state, the node transmit Ipv6 packet to ieee802154
 %-------------------------------------------------------------------------------
-idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd,
+idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft}, Data = #{node_mac_addr := CurrNodeMacAdd,
      fragment_tag := Tag, seqNum := SeqNum}) ->
     % 1st - retrieve useful info from Ip packet
     DestAddress = PcktInfo#ipv6PckInfo.destAddress,
@@ -276,13 +300,14 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
     io:format("Routing check...~n"),
 
     {RouteExist, MeshedHdrBin, MH} =
-        lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum+1),
+        lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum+1, Extended_hopsleft),
+
     FC = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
+
     % 5th - send to next hop
-    
     case FragReq of
         true ->
             Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC, Tag),
@@ -457,13 +482,25 @@ send_fragments(_RouteExist, [], _Counter, _MeshedHdrBin, _MH, _FC, _Tag) ->
 % Decrements hop left field, build new mesh header and returns new datagram
 %-------------------------------------------------------------------------------
 update_datagram(MeshInfo, Datagram, Data) ->
-    HopsLft = MeshInfo#meshInfo.hops_left - 1,
-    case HopsLft of
-        0 ->
+    HopsLeft = MeshInfo#meshInfo.hops_left, 
+    
+    {Extended_hopsleft, HopLft} = 
+        case HopsLeft of 
+                ?DeepHopsLeft -> 
+                    HopsLft = MeshInfo#meshInfo.deep_hops_left-1,
+                    {true, HopsLft}; 
+                 _ -> HopsLft = HopsLeft-1,
+                    {false, HopsLft}
+        end,
+
+    case {Extended_hopsleft, HopLft}  of
+        {_, 0} ->
             % discard datagram => don't transmit it
             {discard, discard_datagram(Datagram, Data)};
-        _ ->
+
+        {false, _} ->
             Payload = MeshInfo#meshInfo.payload,
+            % update mesh header
             MeshHeader =
                 #mesh_header{v_bit = MeshInfo#meshInfo.v_bit,
                              f_bit = MeshInfo#meshInfo.f_bit,
@@ -472,6 +509,22 @@ update_datagram(MeshInfo, Datagram, Data) ->
                              final_destination_address =  MeshInfo#meshInfo.final_destination_address},
 
             BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+            % build new datagram
+            <<BinMeshHeader/binary, Payload/bitstring>>; 
+            
+        {true, _} ->
+            Payload = MeshInfo#meshInfo.payload,
+
+            % update mesh header
+            VBit = MeshInfo#meshInfo.v_bit,
+            FBit = MeshInfo#meshInfo.f_bit,
+            OriginatorAddress = MeshInfo#meshInfo.originator_address,
+            FinalDestinationAddress =  MeshInfo#meshInfo.final_destination_address,
+
+            BinMeshHeader = <<?MESH_DHTYPE:2, VBit:1, FBit:1, ?DeepHopsLeft:4, 
+                            OriginatorAddress/binary, FinalDestinationAddress/binary, HopLft:8>>,
+            
+            % build new datagram
             <<BinMeshHeader/binary, Payload/bitstring>>
     end.
 
@@ -526,7 +579,7 @@ get_nodeData_value(Key) ->
 %-------------------------------------------------------------------------------
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        %phy_layer = mock_phy_network, % uncomment when testing
+        phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_layer:input_callback/4
     }),

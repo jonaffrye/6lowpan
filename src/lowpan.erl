@@ -8,14 +8,14 @@
     compress_ipv6_header/1, build_datagram_pckt/2, build_firstFrag_pckt/5,
     get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
     decompress_ipv6_header/2, encode_integer/1,
-    tuple_to_bin/1, build_frag_header/1, get_next_hop/5, print_as_binary/1,
+    tuple_to_bin/1, build_frag_header/1, get_next_hop/6, print_as_binary/1,
     hex_to_binary/1, complete_with_padding/1, generate_chunks/0,generate_chunks/1,
     build_mesh_header/1, get_mesh_info/1, contains_mesh_header/1,
     build_first_frag_header/1, get_unc_ipv6/1, get_EUI64_mac_addr/1,
     generate_EUI64_mac_addr/1, get_EUI64_from_48bit_mac/1,
     get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,
-    generate_LL_addr/1, create_new_mesh_header/2, create_new_mesh_datagram/3,
-    remove_mesh_header/1, convert_addr_to_bin/1, 
+    generate_LL_addr/1, create_new_mesh_header/3, create_new_mesh_datagram/3,
+    remove_mesh_header/2, convert_addr_to_bin/1, 
     check_tag_unicity/2, get_16bit_mac_addr/1, generate_multicast_addr/1
 ]).
 
@@ -1315,7 +1315,7 @@ create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
 %-------------------------------------------------------------------------------
 % Creates new mesh header
 %-------------------------------------------------------------------------------
-create_new_mesh_header(SenderMacAdd, DstMacAdd) ->
+create_new_mesh_header(SenderMacAdd, DstMacAdd, Extended_hopsleft) ->
     VBit =
         if
             byte_size(SenderMacAdd) =:= 8 -> 0;
@@ -1326,38 +1326,56 @@ create_new_mesh_header(SenderMacAdd, DstMacAdd) ->
             byte_size(DstMacAdd) =:= 8 -> 0;
             true -> 1
         end,
-
+    
     MeshHeader =
-        #mesh_header{
-            v_bit = VBit,
-            f_bit = FBit,
-            hops_left = ?Max_Hops,
-            originator_address = SenderMacAdd,
-            final_destination_address = DstMacAdd
-        },
-    io:format("New mesh header created: ~p~n",[MeshHeader]),
-    lowpan:build_mesh_header(MeshHeader).
+                #mesh_header{
+                    v_bit = VBit,
+                    f_bit = FBit,
+                    hops_left = ?Max_Hops,
+                    originator_address = SenderMacAdd,
+                    final_destination_address = DstMacAdd
+                
+                },
+    case Extended_hopsleft of 
+        true -> 
+            io:format("New mesh header created, DeepHopsLeft: ~p~n",[?Max_DeepHopsLeft]),
+            <<?MESH_DHTYPE:2, VBit:1, FBit:1, ?DeepHopsLeft:4, 
+            SenderMacAdd/binary, DstMacAdd/binary, ?Max_DeepHopsLeft:8>>;
+        false ->
+            io:format("New mesh header created: ~p~n",[MeshHeader]),
+            <<?MESH_DHTYPE:2, VBit:1, FBit:1, ?Max_Hops:4, 
+            SenderMacAdd/binary, DstMacAdd/binary>>
+    end.
 
 %-------------------------------------------------------------------------------
 % Returns routing info in mesh header
 %-------------------------------------------------------------------------------
 get_mesh_info(Datagram) ->
-    <<_:2, V:1, F:1, _/bitstring>> = Datagram,
-
-    case {V, F} of
-        {0, 0} ->
+    <<_:2, _V:1, _F:1, Hops_left:4, _/bitstring>> = Datagram,
+    
+    case Hops_left of 
+        ?DeepHopsLeft ->
+            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:64, FinalDestinationAddress:64, DeepHopsLeft:8, Data/bitstring>> =
+            Datagram;
+        _ -> 
             <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:64, FinalDestinationAddress:64, Data/bitstring>> =
-                Datagram;
-        {0, 1} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:64, FinalDestinationAddress:16, Data/bitstring>> =
-                Datagram;
-        {1, 0} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:16, FinalDestinationAddress:64, Data/bitstring>> =
-                Datagram;
-        {1, 1} ->
-            <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:16, FinalDestinationAddress:16, Data/bitstring>> =
-                Datagram
+            Datagram, 
+            DeepHopsLeft = undefined
     end,
+    % case {V, F} of
+    %     {0, 0} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:64, FinalDestinationAddress:64, Data/bitstring>> =
+    %             Datagram;
+    %     {0, 1} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:64, FinalDestinationAddress:16, Data/bitstring>> =
+    %             Datagram;
+    %     {1, 0} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:16, FinalDestinationAddress:64, Data/bitstring>> =
+    %             Datagram;
+    %     {1, 1} ->
+    %         <<?MESH_DHTYPE:2, VBit:1, FBit:1, HopsLeft:4, OriginatorAddress:16, FinalDestinationAddress:16, Data/bitstring>> =
+    %             Datagram
+    % end,
 
     MeshInfo =
         #meshInfo{
@@ -1366,6 +1384,7 @@ get_mesh_info(Datagram) ->
             hops_left = HopsLeft,
             originator_address = <<OriginatorAddress:64>>,
             final_destination_address = <<FinalDestinationAddress:64>>,
+            deep_hops_left =  DeepHopsLeft,
             payload = Data
         },
     MeshInfo.
@@ -1384,10 +1403,20 @@ contains_mesh_header(Datagram) ->
 %-------------------------------------------------------------------------------
 % Remove mesh header if the datagram was meshed (used in put and reasssemble)
 %-------------------------------------------------------------------------------
-remove_mesh_header(Datagram) ->
+remove_mesh_header(Datagram, HopsLeft) ->
+
     case Datagram of
-        <<?MESH_DHTYPE:2, _Header:134, Rest/bitstring>> ->
-            Rest;
+        <<?MESH_DHTYPE:2, _/bitstring>> -> % meshed datagram 
+
+            case HopsLeft of 
+                    ?DeepHopsLeft -> 
+                        <<?MESH_DHTYPE:2, _Header:142, Rest/bitstring>> = Datagram,
+                        Rest;
+                    _->
+                        <<?MESH_DHTYPE:2, _Header:134, Rest/bitstring>> = Datagram,
+                        Rest
+            end;
+
         _ ->
             Datagram
     end.
@@ -1395,9 +1424,9 @@ remove_mesh_header(Datagram) ->
 %-------------------------------------------------------------------------------
 % Checks the next hop in the routing table and create new datagram with mesh
 % header if meshing is needed
-% returns a tuple {boolean, binary, datagram, macHeader}
+% returns a tuple {nexthop:boolean, binary, datagram, macHeader}
 %-------------------------------------------------------------------------------
-get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum) ->
+get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, Hopsleft_extended) ->
 
     case <<DestAddress:128>> of 
         <<16#FF:8,_/binary>> -> % multicast Ipv6 address
@@ -1406,7 +1435,7 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum) 
             Multicast_EU64 = generate_EUI64_mac_addr(MulticastAddr),
             MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = Multicast_EU64},
             BroadcastHeader = create_broadcast_header(SeqNum),
-            MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress),
+            MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
             Header = <<MeshHdrBin/bitstring, BroadcastHeader/bitstring>>,
             {false, Header, MHdr};
         _->
@@ -1414,7 +1443,7 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum) 
                 NextHopMacAddr when NextHopMacAddr =/= DestMacAddress -> % No direct link
                     io:format("Next hop found: ~p~n", [NextHopMacAddr]),
                     MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
-                    MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress),
+                    MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
                     {true, MeshHdrBin, MacHdr};
 
                 NextHopMacAddr when NextHopMacAddr == DestMacAddress -> % Direct link, no meshing needed

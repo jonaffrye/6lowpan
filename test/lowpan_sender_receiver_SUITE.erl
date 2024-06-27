@@ -15,7 +15,8 @@
     same_tag_different_senders_sender/1, same_tag_different_senders_receiver/1,
     timeout_sender/1, timeout_receiver/1, tag_verification_sender/1, duplicate_sender/1,
     duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1,
-    nalp_sender/1, broadcast_sender/1, broadcast_receiver/1
+    nalp_sender/1, broadcast_sender/1, broadcast_receiver/1, extended_hopsleft_sender/1, extended_hopsleft_receiver2/1, 
+    extended_hopsleft_receiver3/1, extended_hopsleft_receiver4/1
 ]).
 
 all() ->
@@ -40,7 +41,8 @@ groups() ->
             {group, duplicate_tx_rx},
             {group, multiple_hop_tx_rx},
             {group, nalp_tx_rx}, 
-            {group, broadcast_tx_rx}
+            {group, broadcast_tx_rx},
+            {group, extended_hopsleft_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
@@ -56,7 +58,8 @@ groups() ->
         {duplicate_tx_rx, [parallel, {repeat, 1}], [duplicate_sender, duplicate_receiver]}, 
         {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]},
         {nalp_tx_rx, [sequential], [nalp_sender]}, 
-        {broadcast_tx_rx, [parallel, {repeat, 1}], [broadcast_sender, broadcast_receiver]}
+        {broadcast_tx_rx, [parallel, {repeat, 1}], [broadcast_sender, broadcast_receiver]}, 
+        {extended_hopsleft_tx_rx, [parallel, {repeat, 1}], [extended_hopsleft_sender, extended_hopsleft_receiver2, extended_hopsleft_receiver3, extended_hopsleft_receiver4]}
     ].
 
 %--------------------------
@@ -102,11 +105,12 @@ init_per_group(multiple_hop_tx_rx, Config) ->
 %--------------------------
 init_per_group(nalp_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
-
 %--------------------------
 init_per_group(broadcast_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>, ?Payload, Config);
-
+%--------------------------
+init_per_group(extended_hopsleft_tx_rx, Config) ->
+    init_per_group_setup(?Node1Address, ?Node4Address, ?Payload, Config);
 %--------------------------
 init_per_group(_, Config) ->
     Config.
@@ -301,6 +305,18 @@ init_per_testcase(broadcast_sender, Config) ->
 
 init_per_testcase(broadcast_receiver, Config) ->
     broadcast_receiver_init_per_testcase(Config, ?Default_routing_table);
+%--------------------------
+init_per_testcase(extended_hopsleft_sender, Config) ->
+    defaut_sender_init_per_testcase(Config, ?Node1_multiple_hop_routing_table);
+
+init_per_testcase(extended_hopsleft_receiver2, Config)->
+    defaut_receiver2_init_per_testcase(Config, ?Node2_multiple_hop_routing_table); 
+
+init_per_testcase(extended_hopsleft_receiver3, Config)->
+    defaut_receiver3_init_per_testcase(Config, ?Node3_multiple_hop_routing_table); 
+
+init_per_testcase(extended_hopsleft_receiver4, Config) ->
+    defaut_receiver4_init_per_testcase(Config, ?Node4_multiple_hop_routing_table);
 
 %--------------------------
 init_per_testcase(_, Config) ->
@@ -888,3 +904,45 @@ broadcast_receiver(Config) ->
     ct:pal("Routed packet received successfully at node4"),
 
     lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+
+%-------------------------------------------------------------------------------
+% Send a datagram with special hopsleft value 0xF
+%-------------------------------------------------------------------------------
+extended_hopsleft_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+    ok = erpc:call(Node1, lowpan_layer, extended_hopsleft_tx, [IPv6Pckt]),
+    ct:pal("extended hop left packet sent successfully from node1 to node4"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+%-------------------------------------------------------------------------------
+% Discard datagram received from node 1
+%-------------------------------------------------------------------------------
+extended_hopsleft_receiver2(Config) ->
+    {Pid2, Node2} = ?config(node2, Config),
+    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
+
+
+extended_hopsleft_receiver3(Config) ->
+    {Pid3, Node3} = ?config(node3, Config),
+    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    lowpan_node:stop_lowpan_node(Node3, Pid3).
+
+extended_hopsleft_receiver4(Config) ->
+    {Pid4, Node4}  = ?config(node4, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
+    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    Payload = PcktInfo#ipv6PckInfo.payload,
+    CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
+
+    ReceivedData = erpc:call(Node4, lowpan_layer, frame_reception, []),
+
+    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    ReceivedData = CompressedIpv6Packet,
+
+    ct:pal("Routed packet received successfully at node4"),
+    lowpan_node:stop_lowpan_node(Node4, Pid4).

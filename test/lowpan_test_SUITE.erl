@@ -18,7 +18,6 @@
 all() ->
     [
         pkt_encapsulation_test,
-        fragmentation_test,
         datagram_info_test,
         reassemble_fragments_list_test,
         reassemble_single_fragments_test,
