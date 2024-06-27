@@ -1400,13 +1400,15 @@ remove_mesh_header(Datagram) ->
 get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum) ->
 
     case <<DestAddress:128>> of 
-        <<16#FF02:16,_/binary>> -> % multicast Ipv6 address
+        <<16#FF:8,_/binary>> -> % multicast Ipv6 address
             io:format("Multicast request~n"),
             MulticastAddr = generate_multicast_addr(<<DestAddress:128>>), 
             Multicast_EU64 = generate_EUI64_mac_addr(MulticastAddr),
             MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = Multicast_EU64},
-            Datagram = create_broadcast_header(SeqNum),
-            {false, Datagram, MHdr};
+            BroadcastHeader = create_broadcast_header(SeqNum),
+            MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress),
+            Header = <<MeshHdrBin/bitstring, BroadcastHeader/bitstring>>,
+            {false, Header, MHdr};
         _->
             case routing_table:get_route(DestMacAddress) of
                 NextHopMacAddr when NextHopMacAddr =/= DestMacAddress -> % No direct link
