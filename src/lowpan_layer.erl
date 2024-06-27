@@ -33,7 +33,9 @@ init(Params) ->
 
     DatagramMap = ets:new(datagram_map, [named_table, public]),
 
-    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => DatagramMap, fragment_tag => ?DEFAULT_TAG_VALUE},
+    Data = #{node_mac_addr => CurrNodeMacAdd, datagram_map => DatagramMap, 
+            fragment_tag => ?DEFAULT_TAG_VALUE, seqNum => ?BC_SEQNUM},
+
     io:format("~p: 6lowpan layer successfully launched~n", [node()]),
 
     io:format("----------------------------------------------------------------------------------------~n"),
@@ -82,7 +84,12 @@ send_unc_datagram(Ipv6Pckt, FrameControl, MacHeader) ->
 % Send datagram packet directly to ieee802154
 %-------------------------------------------------------------------------------
 tx(Frame, FrameControl, MacHeader) ->
-    gen_statem:call(?MODULE, {tx_frame, Frame, FrameControl, MacHeader}).
+    case Frame of 
+        <<?NALP_DHTYPE,_/bitstring>> -> 
+            io:format("The received frame is not a lowpan frame~n"),
+            error_nalp;
+        _-> gen_statem:call(?MODULE, {tx_frame, Frame, FrameControl, MacHeader})
+    end.
 
 %-------------------------------------------------------------------------------
 % Get any datagram from ieee802154
@@ -100,8 +107,10 @@ frame_reception() ->
             io:format("Reassembly timeout for entry ~p~n", [EntryKey]),
             ets:delete(DatagramMap, EntryKey),
             io:format("Entry deleted~n"),
-            reassembly_timeout
-    after 70000 ->
+            reassembly_timeout; 
+        {error_nalp}->
+            error_nalp
+    after 15000 ->
         error_timeout
     end.
 
@@ -237,9 +246,13 @@ idle_state({call, From}, {tx_datagram, Ipv6Pckt, FrameControl, MacHeader}, Data)
 %-------------------------------------------------------------------------------
 % state: pckt_tx, in this state, the node transmit Ipv6 packet to ieee802154
 %-------------------------------------------------------------------------------
-idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd, fragment_tag := Tag}) ->
+idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr := CurrNodeMacAdd,
+     fragment_tag := Tag, seqNum := SeqNum}) ->
     % 1st - retrieve useful info from Ip packet
     DestAddress = PcktInfo#ipv6PckInfo.destAddress,
+
+    % process if DestAddress if broadcast or multicast 
+
     SrcAddress = PcktInfo#ipv6PckInfo.sourceAddress,
     Payload = PcktInfo#ipv6PckInfo.payload,
    
@@ -261,14 +274,15 @@ idle_state({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo}, Data = #{node_mac_addr :
 
     % 4th - get next hop
     io:format("Routing check...~n"),
+
     {RouteExist, MeshedHdrBin, MH} =
-        lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress),
-    
-    % 5th - send to next hop
+        lowpan:get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum+1),
     FC = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
                         dest_addr_mode = ?EXTENDED},
+    % 5th - send to next hop
+    
     case FragReq of
         true ->
             Response = send_fragments(RouteExist, Fragments, 1, MeshedHdrBin, MH, FC, Tag),
@@ -311,6 +325,11 @@ idle_state(cast, {new_frame, OriginatorAddr, Datagram}, Data = #{caller := From}
             io:format("Received uncompressed IPv6 datagram~n"),
             % Process uncompressed IPv6 datagram
             From ! {reassembled_packet, Payload},
+            {next_state, idle_state, Data};
+
+        <<?NALP_DHTYPE,_/bitstring>> -> 
+            io:format("The received frame is not a lowpan frame~n"),
+            From ! {error_nalp},
             {next_state, idle_state, Data};
 
         <<Type:5, _Rest/bitstring>> when Type =:= ?FRAG1_DHTYPE; Type =:= ?FRAGN_DHTYPE -> % fragmented datagram
@@ -465,14 +484,20 @@ discard_datagram(_, Data = #{caller := From})->
 %-------------------------------------------------------------------------------
 % Forward datagram to next hop
 %-------------------------------------------------------------------------------
-forward_datagram(Frame, FrameControl, MacHeader, Data) ->
-    Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
-    case Transmit of
-        {ok, _} ->
-            io:format("Packet sent successfully~n");    
-        {error, Error} ->
-            io:format("Transmission error: ~p~n", [Error])
-    end,
+forward_datagram(Frame, FrameControl, MacHeader, Data = #{caller := From}) ->
+    case Frame of 
+        <<?NALP_DHTYPE,_/bitstring>> ->
+            io:format("The received frame is not a lowpan frame~n"), 
+            From ! {error_nalp};
+        _->
+            Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
+            case Transmit of
+                {ok, _} ->
+                    io:format("Packet sent successfully~n");    
+                {error, Error} ->
+                    io:format("Transmission error: ~p~n", [Error])
+            end
+    end, 
     {next_state, idle_state, Data}.
 
 

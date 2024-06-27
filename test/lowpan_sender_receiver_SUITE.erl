@@ -14,7 +14,8 @@
     unexpected_dtg_size_sender/1, tag_verification_receiver/1,
     same_tag_different_senders_sender/1, same_tag_different_senders_receiver/1,
     timeout_sender/1, timeout_receiver/1, tag_verification_sender/1, duplicate_sender/1,
-    duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1 
+    duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1,
+    nalp_sender/1, broadcast_sender/1, broadcast_receiver/1
 ]).
 
 all() ->
@@ -37,7 +38,9 @@ groups() ->
             {group, timeout_scenario},
             {group, tag_verification_tx_rx},
             {group, duplicate_tx_rx},
-            {group, multiple_hop_tx_rx}
+            {group, multiple_hop_tx_rx},
+            {group, nalp_tx_rx}, 
+            {group, broadcast_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {big_payload_tx_rx, [parallel, {repeat, 1}], [big_payload_sender, big_payload_receiver]},
@@ -51,7 +54,9 @@ groups() ->
         {timeout_scenario, [parallel, {repeat, 1}], [timeout_sender, timeout_receiver]}, 
         {tag_verification_tx_rx, [parallel, {repeat, 1}], [tag_verification_sender, tag_verification_receiver]},
         {duplicate_tx_rx, [parallel, {repeat, 1}], [duplicate_sender, duplicate_receiver]}, 
-        {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]}
+        {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]},
+        {nalp_tx_rx, [sequential], [nalp_sender]}, 
+        {broadcast_tx_rx, [parallel, {repeat, 1}], [broadcast_sender, broadcast_receiver]}
     ].
 
 %--------------------------
@@ -95,6 +100,14 @@ init_per_group(duplicate_tx_rx, Config) ->
 init_per_group(multiple_hop_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node4Address, ?Payload, Config);
 %--------------------------
+init_per_group(nalp_tx_rx, Config) ->
+    init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
+
+%--------------------------
+init_per_group(broadcast_tx_rx, Config) ->
+    init_per_group_setup(?Node1Address, <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>, ?Payload, Config);
+
+%--------------------------
 init_per_group(_, Config) ->
     Config.
 
@@ -120,6 +133,7 @@ init_per_group_setup(Src, Dst, Payload, Config) ->
         {node2_mac_address, ?Node2MacAddress},
         {node3_mac_address, ?Node3MacAddress}, 
         {node4_mac_address, ?Node4MacAddress}, 
+        {broadcast_mac_address, <<16#9234:16>>}, 
         {ipv6_packet, Packet}
         | Config
     ].
@@ -170,6 +184,14 @@ defaut_receiver4_init_per_testcase(Config, RoutingTable)->
     Callback = fun lowpan_layer:input_callback/4,
     Node = lowpan_node:boot_lowpan_node(node4, Network, Node4MacAddress, Callback, RoutingTable),
     [{node4, Node} | Config].
+
+
+broadcast_receiver_init_per_testcase(Config, RoutingTable)->
+    Network = ?config(network, Config),
+    MacAddress = ?config(broadcast_mac_address, Config),
+    Callback = fun lowpan_layer:input_callback/4,
+    Node = lowpan_node:boot_lowpan_node(broadcast_node, Network, MacAddress, Callback, RoutingTable),
+    [{broadcast_node, Node} | Config].
 
 %--------------------------
 init_per_testcase(simple_pckt_sender, Config)->
@@ -268,6 +290,17 @@ init_per_testcase(multiple_hop_receiver3, Config)->
 
 init_per_testcase(multiple_hop_receiver4, Config) ->
     defaut_receiver4_init_per_testcase(Config, ?Node4_multiple_hop_routing_table);
+
+%--------------------------
+init_per_testcase(nalp_sender, Config) ->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
+
+%--------------------------
+init_per_testcase(broadcast_sender, Config) ->
+    defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
+
+init_per_testcase(broadcast_receiver, Config) ->
+    broadcast_receiver_init_per_testcase(Config, ?Default_routing_table);
 
 %--------------------------
 init_per_testcase(_, Config) ->
@@ -801,3 +834,57 @@ multiple_hop_receiver4(Config) ->
 
     ct:pal("Routed packet received successfully at node4"),
     lowpan_node:stop_lowpan_node(Node4, Pid4).
+
+
+%-------------------------------------------------------------------------------
+% Send a none lowpan frame to node 2
+%-------------------------------------------------------------------------------
+nalp_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+
+    Frame = <<?NALP_DHTYPE, IPv6Pckt/bitstring>>,
+
+    FC = #frame_control{ack_req = ?ENABLED, 
+                        frame_type = ?FTYPE_DATA,
+                        src_addr_mode = ?EXTENDED,
+                        dest_addr_mode = ?EXTENDED},
+
+    MH = #mac_header{src_addr = ?node1_addr, 
+        dest_addr = ?node2_addr},
+        
+    error_nalp = erpc:call(Node1, lowpan_layer, tx, [Frame, FC, MH]),
+    ct:pal("NALP error correctly received"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+
+%-------------------------------------------------------------------------------
+% Send a broadcast packet 
+%-------------------------------------------------------------------------------
+broadcast_sender(Config) ->
+    {Pid1, Node1} = ?config(node1, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ct:pal("Broadcast packet sent successfully"),
+    lowpan_node:stop_lowpan_node(Node1, Pid1).
+
+%-------------------------------------------------------------------------------
+% Reception of a broadcasted packet
+%-------------------------------------------------------------------------------
+broadcast_receiver(Config) ->
+    {Pid2, Node2} = ?config(broadcast_node, Config),
+    IPv6Pckt = ?config(ipv6_packet, Config),
+
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt),
+    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    Payload = PcktInfo#ipv6PckInfo.payload,
+    CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
+
+    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+
+    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    ReceivedData = CompressedIpv6Packet,
+
+    ct:pal("Routed packet received successfully at node4"),
+
+    lowpan_node:stop_lowpan_node(Node2, Pid2).

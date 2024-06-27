@@ -22,7 +22,6 @@
 
 -define(NALP_DHTYPE, 2#00). % Not a LoWPAN frame, such packet shall be discarded
 -define(IPV6_DHTYPE, 2#01000001). % Uncompressed IPv6 Addresses
--define(HC1_DHTYPE, 2#01000010). %  LOWPAN_HC1 compressed IPv6
 -define(IPHC_DHTYPE, 2#011).      %  LOWPAN_IPHC compressed IPv6 (RFC6282)
 -define(BC0_DHTYPE, 2#01010000). % LOWPAN_BC0 broadcast
 -define(ESC_DHTYPE, 2#01111111). % Additional Dispatch byte follows
@@ -37,7 +36,6 @@
 -type dispatch_type() ::
     ?NALP_DHTYPE |
     ?IPV6_DHTYPE |
-    ?HC1_DHTYPE |
     ?IPHC_DHTYPE |
     ?BC0_DHTYPE |
     ?ESC_DHTYPE |
@@ -71,11 +69,12 @@
 
 -define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
 -define(MAX_FRAG_SIZE, 2047). % 11 bits datagram_size
--define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
+-define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 -define(MAX_TAG_VALUE, 65535).
 -define(DEFAULT_TAG_VALUE, 2#0000000000000000).
+-define(BC_SEQNUM, 2#00000000).
 
 -record(additional_info, 
         {datagram_size, 

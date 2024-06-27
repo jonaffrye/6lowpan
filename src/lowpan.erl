@@ -8,7 +8,7 @@
     compress_ipv6_header/1, build_datagram_pckt/2, build_firstFrag_pckt/5,
     get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
     decompress_ipv6_header/2, encode_integer/1,
-    tuple_to_bin/1, build_frag_header/1, get_next_hop/3, print_as_binary/1,
+    tuple_to_bin/1, build_frag_header/1, get_next_hop/5, print_as_binary/1,
     hex_to_binary/1, complete_with_padding/1, generate_chunks/0,generate_chunks/1,
     build_mesh_header/1, get_mesh_info/1, contains_mesh_header/1,
     build_first_frag_header/1, get_unc_ipv6/1, get_EUI64_mac_addr/1,
@@ -16,7 +16,7 @@
     get_EUI64_from_short_mac/1, get_EUI64_from_extended_mac/1,
     generate_LL_addr/1, create_new_mesh_header/2, create_new_mesh_datagram/3,
     remove_mesh_header/1, convert_addr_to_bin/1, 
-    check_tag_unicity/2, get_16bit_mac_addr/1
+    check_tag_unicity/2, get_16bit_mac_addr/1, generate_multicast_addr/1
 ]).
 
 
@@ -48,16 +48,16 @@ get_unc_ipv6(Ipv6Pckt) ->
 %         General form of 6Lowpan compression with UDP as nextHeader
 %
 %                           1                   2                   3
-%    *  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
-%    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-%    * |0|1|1|TF |N|HLI|C|S|SAM|M|D|DAM| SCI   | DCI   | comp. IPv6 hdr|
-%    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-%    * | non compressed IPv6 fields .....                                  |
-%    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-%    * | LOWPAN_UDP    | non compressed UDP fields ...                 |
-%    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
-%    * | L4 data ...                                                   |
-%    * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%      0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+%      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%      |0|1|1|TF |N|HLI|C|S|SAM|M|D|DAM| SCI   | DCI   | comp. IPv6 hdr|
+%      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%      | non compressed IPv6 fields .....                              |
+%      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%      | LOWPAN_UDP    | non compressed UDP fields ...                 |
+%      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%      | L4 data ...                                                   |
+%      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
 %-------------------------------------------------------------------------------
@@ -1397,24 +1397,37 @@ remove_mesh_header(Datagram) ->
 % header if meshing is needed
 % returns a tuple {boolean, binary, datagram, macHeader}
 %-------------------------------------------------------------------------------
-get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress) ->
-    case routing_table:get_route(DestMacAddress) of
-        NextHopMacAddr when NextHopMacAddr =/= DestMacAddress -> % No direct link
-            io:format("Next hop found: ~p~n", [NextHopMacAddr]),
-            MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
-            MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress),
-            {true, MeshHdrBin, MacHdr};
+get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum) ->
 
-        NextHopMacAddr when NextHopMacAddr == DestMacAddress -> % Direct link, no meshing needed
-            io:format("Direct link found ~n"),
-            MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},
-            {false, <<>>, MHdr};
+    case <<DestAddress:128>> of 
+        <<16#FF02:16,_/binary>> -> % multicast Ipv6 address
+            io:format("Multicast request~n"),
+            MulticastAddr = generate_multicast_addr(<<DestAddress:128>>), 
+            Multicast_EU64 = generate_EUI64_mac_addr(MulticastAddr),
+            MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = Multicast_EU64},
+            Datagram = create_broadcast_header(SeqNum),
+            {false, Datagram, MHdr};
+        _->
+            case routing_table:get_route(DestMacAddress) of
+                NextHopMacAddr when NextHopMacAddr =/= DestMacAddress -> % No direct link
+                    io:format("Next hop found: ~p~n", [NextHopMacAddr]),
+                    MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
+                    MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress),
+                    {true, MeshHdrBin, MacHdr};
 
-        _ ->
-            % Not reachable from node, handle as broadcast?
-            io:format("There is no direct link ~n"),
-            {false, <<>>, undefined}
+                NextHopMacAddr when NextHopMacAddr == DestMacAddress -> % Direct link, no meshing needed
+                    io:format("Direct link found ~n"),
+                    MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},
+                    {false, <<>>, MHdr};
+
+                _ ->
+                    % Not reachable from node, handle as broadcast?
+                    io:format("There is no direct link ~n"),
+                    {false, <<>>, undefined, undefined}
+            end
+            
     end.
+    
 
 %-------------------------------------------------------------------------------
 % Generate a EUI64 address from the mac address
@@ -1478,6 +1491,34 @@ get_16bit_mac_addr(Address) ->
     <<_:112, MacAddr:16/bitstring>> = <<Address:128>>,
     MacAddr.
 
+
+
+%-------------------------------------------------------------------------------
+%      Multicast Address Mapping
+%
+%     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+%    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%    |1 0 0| DST[15]*|   DST[16]     |
+%    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+generate_multicast_addr(DestAddress)->
+    <<_:112, DST_15:8, DST_16:8>> = DestAddress,
+    <<_:3, Last5Bits:5>> = <<DST_15:8>>,
+    MulticastAddr = <<2#100:3, Last5Bits:5, DST_16:8>>,
+    MulticastAddr.
+
+
+%-------------------------------------------------------------------------------
+%     Broadcast Header
+%
+%    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
+%    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+%    |0|1|LOWPAN_BC0 |Sequence Number|
+%    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+create_broadcast_header(SeqNum)->
+   BC0_Header = <<2#01,?BC0_DHTYPE, SeqNum:8>>,
+   BC0_Header.
 
 
 %------------------------------------------------------------------------------------------------------------------------------------------------------

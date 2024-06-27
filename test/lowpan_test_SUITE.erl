@@ -11,7 +11,7 @@
     multicast_addr_pckt_comp/1, global_context_pckt_comp1/1, udp_nh_pckt_comp/1,
     tcp_nh_pckt_comp/1, icmp_nh_pckt_comp/1, unc_ipv6/1, iphc_pckt_16bit_addr/1,
     iphc_pckt_64bit_addr/1, msh_pckt/1, extended_EUI64_from_64mac/1, extended_EUI64_from_48mac/1,
-    extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1
+    extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1, multicast_addr_validity/1
 ]).
 
 
@@ -35,7 +35,8 @@ all() ->
         iphc_pckt_64bit_addr,
         iphc_pckt_16bit_addr,
         msh_pckt, extended_EUI64_from_64mac,extended_EUI64_from_48mac,
-        extended_EUI64_from_16mac, check_tag_unicity, link_local_from_16mac
+        extended_EUI64_from_16mac, check_tag_unicity, link_local_from_16mac, 
+        multicast_addr_validity
     ].
 
 init_per_testcase(Config) ->
@@ -674,4 +675,12 @@ check_tag_unicity(_Config) ->
     {ValidTag2, FinalMap} = lowpan:check_tag_unicity(NewTagMap, Tag2),
     io:format("TagMap: ~p~n", [FinalMap]),
     ValidTag2 =/= Tag2.
+    
+
+multicast_addr_validity(_Config) ->
+    Ipv6Addr = <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>, 
+    GenAddr = lowpan:generate_multicast_addr(Ipv6Addr), 
+    ExpectedAddr = <<16#9234:16>>, 
+    io:format("ExpectedAddr ~p~nGenAddr ~p~n", [ExpectedAddr, GenAddr]),
+    GenAddr = ExpectedAddr.
     
