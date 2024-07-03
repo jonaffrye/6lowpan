@@ -484,7 +484,7 @@ send_fragments(_RouteExist, [], _Counter, _MeshedHdrBin, _MH, _FC, _Tag) ->
 update_datagram(MeshInfo, Datagram, Data) ->
     HopsLeft = MeshInfo#meshInfo.hops_left, 
     
-    {Extended_hopsleft, HopLft} = 
+    {Is_Extended_hopsleft, HopLft} = 
         case HopsLeft of 
                 ?DeepHopsLeft -> 
                     HopsLft = MeshInfo#meshInfo.deep_hops_left-1,
@@ -493,7 +493,7 @@ update_datagram(MeshInfo, Datagram, Data) ->
                     {false, HopsLft}
         end,
 
-    case {Extended_hopsleft, HopLft}  of
+    case {Is_Extended_hopsleft, HopLft}  of
         {_, 0} ->
             % discard datagram => don't transmit it
             {discard, discard_datagram(Datagram, Data)};
@@ -579,7 +579,7 @@ get_nodeData_value(Key) ->
 %-------------------------------------------------------------------------------
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        phy_layer = mock_phy_network, % uncomment when testing
+        %phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_layer:input_callback/4
     }),

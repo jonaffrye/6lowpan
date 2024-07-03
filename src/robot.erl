@@ -16,7 +16,10 @@
     msh_pckt_tx/0,
     msh_big_pckt_tx/0,
     rx/0, 
-    tx_broadcast_pckt/0
+    tx_broadcast_pckt/0, 
+    extended_hopsleft_tx/0, 
+    tx_unc_ipv6_udp/0, 
+    tx_comp_ipv6_udp/0
 ]).
 
 -export([start/2]).
@@ -37,6 +40,7 @@ tx_unc_ipv6() ->
     io:format("Fragment size: ~p bytes~n", [byte_size(Ipv6Pckt)]),
 
     lowpan_layer:send_unc_datagram(Ipv6Pckt, ?FrameControl, ?MacHeader).
+
 
 %-------------------------------------------------------------------------------
 % compressed header packet format verification
@@ -81,15 +85,22 @@ tx_msh_iphc_pckt() ->
 tx_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
-
     PcktLen = byte_size(Ipv6Pckt),
 
-    Frag =
-        lowpan:build_firstFrag_pckt(?FRAG1_DHTYPE, PcktLen, 124, CompressedHeader, ?Payload),
-    io:format("Frame ~p~n", [Frag]),
-    io:format("Fragment size: ~p bytes~n", [byte_size(Frag)]),
+    FragHeader =
+        #frag_header{
+            frag_type = ?FRAG1_DHTYPE,
+            datagram_size = PcktLen,
+            datagram_tag = 124
+        },
 
-    lowpan_layer:tx(Frag, ?FrameControl, ?MacHeader).
+    FragHeaderBin = lowpan:build_first_frag_header(FragHeader),
+
+    Datagram = <<FragHeaderBin/binary, CompressedHeader/binary, ?Payload/bitstring>>,
+    io:format("Frame ~p~n", [Datagram]),
+    io:format("Fragment size: ~p bytes~n", [byte_size(Datagram)]),
+
+    lowpan_layer:tx(Datagram, ?FrameControl, ?MacHeader).
 
 %-------------------------------------------------------------------------------
 % Meshed, fragmented and compressed packet format verification
@@ -106,7 +117,7 @@ tx_msh_frag_iphc_pckt() ->
             datagram_tag = 124
         },
 
-    Frag = lowpan:build_first_frag_header(FragHeader),
+    FragHeaderBin = lowpan:build_first_frag_header(FragHeader),
 
     MeshHeader =
         #mesh_header{
@@ -119,11 +130,10 @@ tx_msh_frag_iphc_pckt() ->
 
     BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
     Datagram =
-        <<BinMeshHeader/binary, Frag/binary, CompressedHeader/binary, ?Payload/bitstring>>,
+        <<BinMeshHeader/binary, FragHeaderBin/binary, CompressedHeader/binary, ?Payload/bitstring>>,
     io:format("Datagram ~p~n", [Datagram]),
 
     lowpan_layer:tx(Datagram, ?FrameControl, ?MacHeader).
-
 
 %-------------------------------------------------------------------------------
 % Broadcast packet format verification
@@ -140,7 +150,7 @@ tx_broadcast_pckt() ->
             datagram_tag = 124
         },
 
-    Frag = lowpan:build_first_frag_header(FragHeader),
+    FragHeaderBin = lowpan:build_first_frag_header(FragHeader),
 
     DestMacAddr = lowpan:generate_EUI64_mac_addr(<<16#1234:16>>),
 
@@ -149,7 +159,7 @@ tx_broadcast_pckt() ->
     {_, BroadcastHeader, _} = lowpan:get_next_hop(?Node1MacAddress, ?Node1MacAddress, DestMacAddr, DestAddress, 3, false),
 
     Datagram =
-        <<BroadcastHeader/binary, Frag/binary, CompressedHeader/binary, ?Payload/bitstring>>,
+        <<BroadcastHeader/binary, FragHeaderBin/binary, CompressedHeader/binary, ?Payload/bitstring>>,
     io:format("Datagram ~p~n", [Datagram]),
 
     MacHeader = #mac_header{src_addr = ?Node1MacAddress, dest_addr = DestMacAddr},
@@ -187,6 +197,69 @@ tx_big_payload() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
+
+%-------------------------------------------------------------------------------
+% Transmission of uncompressed ipv6 packet with udp next header
+%-------------------------------------------------------------------------------
+tx_unc_ipv6_udp() ->
+    Payload = <<"Hello world">>,
+    PayloadLength = byte_size(Payload),
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            % 4 bytes for the UDP header
+            payload_length = PayloadLength,
+            next_header = 17,
+            hop_limit = 64,
+            source_address = ?Node1Address,
+            destination_address = ?Node2Address
+        },
+    UdpHeader =
+        #udp_header{
+            source_port = 1025,
+            destination_port = 61617,
+            length = PayloadLength,
+            checksum = 16#f88c
+        },
+
+    Ipv6Pckt = ipv6:build_ipv6_udp_packet(IPv6Header, UdpHeader, Payload),
+    io:format("Frame ~p~n", [Ipv6Pckt]),
+    io:format("Fragment size: ~p bytes~n", [byte_size(Ipv6Pckt)]),
+
+    lowpan_layer:send_unc_datagram(Ipv6Pckt, ?FrameControl, ?MacHeader).
+
+
+%-------------------------------------------------------------------------------
+% Transmission of compressed ipv6 packet with udp next header
+%-------------------------------------------------------------------------------
+tx_comp_ipv6_udp() ->
+    Payload = <<"Hello world">>,
+    PayloadLength = byte_size(Payload),
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            % 4 bytes for the UDP header
+            payload_length = PayloadLength,
+            next_header = 17,
+            hop_limit = 64,
+            source_address = ?Node1Address,
+            destination_address = ?Node2Address
+        },
+    UdpHeader =
+        #udp_header{
+            source_port = 1025,
+            destination_port = 61617,
+            length = PayloadLength,
+            checksum = 16#f88c
+        },
+
+    Ipv6Pckt = ipv6:build_ipv6_udp_packet(IPv6Header, UdpHeader, Payload),
+    lowpan_layer:send_packet(Ipv6Pckt).
+
 %-------------------------------------------------------------------------------
 % Ipv6 with nextHeader packet format verification
 %-------------------------------------------------------------------------------
@@ -197,7 +270,7 @@ tx_with_udp() ->
             traffic_class = 0,
             flow_label = 0,
             % 4 bytes for the UDP header
-            payload_length = ?PayloadLength + 4,
+            payload_length = ?PayloadLength,
             next_header = 17,
             hop_limit = 64,
             source_address = ?Node1Address,
@@ -251,6 +324,13 @@ msh_big_pckt_tx() ->
 
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, ?BigPayload),
     lowpan_layer:send_packet(Ipv6Pckt).
+
+%-------------------------------------------------------------------------------
+% Extended hopsLeft packet transmission 
+%-------------------------------------------------------------------------------
+extended_hopsleft_tx() ->
+    Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
+    lowpan_layer:extended_hopsleft_tx(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
 % Data reception

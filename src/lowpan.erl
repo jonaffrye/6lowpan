@@ -20,15 +20,15 @@
 ]).
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % return pre-built Ipv6 packet
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_ipv6_pkt(Header, Payload) ->
     ipv6:build_ipv6_packet(Header, Payload).
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % create an uncompressed 6lowpan packet from an Ipv6 packet
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 pkt_encapsulation(Header, Payload) ->
     Ipv6Pckt = get_ipv6_pkt(Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
@@ -37,14 +37,14 @@ pkt_encapsulation(Header, Payload) ->
 get_unc_ipv6(Ipv6Pckt) ->
     <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                               Header compression
+%                               Header compression
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %         General form of 6Lowpan compression with UDP as nextHeader
 %
 %                           1                   2                   3
@@ -60,12 +60,12 @@ get_unc_ipv6(Ipv6Pckt) ->
 %      +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc compress an Ipv6 packet header according to the IPHC compression scheme
 % @returns a tuple containing the compressed header, the payload and the values
 % that should be carried inline
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 compress_ipv6_header(Ipv6Pckt) ->
     PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
 
@@ -80,22 +80,24 @@ compress_ipv6_header(Ipv6Pckt) ->
     List = [],
 
     {CID, UpdateMap0, UpdatedList0} =
-        process_cid(
-            SourceAddress,
-            DestAddress,
-            Map,
-            % first one because context identifier extension should follow DAM
-            List
-        ),
+        process_cid(SourceAddress, DestAddress, Map, List),
+
     {TF, UpdateMap1, UpdatedList1} =
         process_tf(TrafficClass, FlowLabel, UpdateMap0, UpdatedList0),
+    
     {NH, UpdateMap2, UpdatedList2} = process_nh(NextHeader, UpdateMap1, UpdatedList1),
+    
     {HLIM, UpdateMap3, UpdatedList3} = process_hlim(HopLimit, UpdateMap2, UpdatedList2),
+    
     SAC = process_sac(SourceAddress),
+    
     {SAM, UpdateMap4, UpdatedList4} =
         process_sam(SAC, CID, SourceAddress, UpdateMap3, UpdatedList3),
+    
     M = process_m(DestAddress),
+    
     DAC = process_dac(DestAddress),
+    
     {DAM, CarrInlineMap, CarrInlineList} =
         process_dam(M, DAC, CID, DestAddress, UpdateMap4, UpdatedList4),
 
@@ -117,19 +119,21 @@ compress_ipv6_header(Ipv6Pckt) ->
             {CompressedHeader, CarrInlineMap}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process the TrafficClass and Flow label fields
 % @returns a tuple containing the compressed values and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_tf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
     % TrafficClass integer to a binary
     <<DSCP:6, ECN:2>> = <<TrafficClass:8>>,
+
     case {ECN, DSCP, FlowLabel} of
         {0, 0, 0} ->
             % Traffic Class and Flow Label are elided
             {2#11, CarrInlineMap, CarrInlineList};
+
         {_, _, 0} ->
             UpdatedMap = CarrInlineMap#{"TrafficClass" => TrafficClass},
             % 8 bits tot
@@ -138,14 +142,16 @@ process_tf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
             UpdatedList = [CarrInlineList, L],
             % Flow Label is elided
             {2#10, UpdatedMap, UpdatedList};
+
         {_, 0, _} ->
             UpdatedMap = CarrInlineMap#{"ECN" => ECN, "FlowLabel" => FlowLabel},
             % 24 bits tot
-            Bin = <<ECN:2, 0:2, FlowLabel:20>>,
+            Bin = <<ECN:2, 0:2, FlowLabel:20>>, % TODO FlowLabel should be carried on 3 bytes
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             % DSCP is elided
             {2#01, UpdatedMap, UpdatedList};
+
         _ ->
             UpdatedMap = CarrInlineMap#{"TrafficClass" => TrafficClass, "FlowLabel" => FlowLabel},
             % 32 bits tot
@@ -156,15 +162,14 @@ process_tf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
             {2#00, UpdatedMap, UpdatedList}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process the NextHeader field
 % @doc NextHeader specifies whether or not the next header is encoded using NHC
 % @returns a tuple containing the compressed value and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?UDP_PN ->
-    % TODO after implementing NHC, modify return value for UDP, TCP and ICMP
     {1, CarrInlineMap, CarrInlineList};
 process_nh(NextHeader, CarrInlineMap, CarrInlineList) when NextHeader == ?TCP_PN ->
     Bin = <<NextHeader>>,
@@ -182,14 +187,13 @@ process_nh(NextHeader, CarrInlineMap, CarrInlineList) ->
     UpdatedList = [CarrInlineList, L],
     {0, CarrInlineMap#{"NextHeader" => NextHeader}, UpdatedList}.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process the HopLimit field
 % @returns a tuple containing the compressed value and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_hlim(HopLimit, CarrInlineMap, CarrInlineList) when HopLimit == 1 ->
-    % UDP
     {2#01, CarrInlineMap, CarrInlineList};
 process_hlim(HopLimit, CarrInlineMap, CarrInlineList) when HopLimit == 64 ->
     {2#10, CarrInlineMap, CarrInlineList};
@@ -201,33 +205,50 @@ process_hlim(HopLimit, CarrInlineMap, CarrInlineList) ->
     UpdatedList = CarrInlineList ++ L,
     {2#00, CarrInlineMap#{"HopLimit" => HopLimit}, UpdatedList}.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process the Context Identifier Extension field
 % @doc If this bit is 1, an 8 bit CIE field follows after the DAM field
 % @returns a tuple containing the compressed value and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
-process_cid(SrcAdd, _, CarrInlineMap, CarrInlineList) ->
+%---------------------------------------------------------------------------------------
+process_cid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) ->
     <<SrcAddPrefix:16, _/binary>> = <<SrcAdd:128>>,
-    %<<DstAddPrefix:16, _/binary>> = <<DstAdd:128>>, %TODO Check for the DestAddr
-    case SrcAddPrefix of
-        ?LINK_LOCAL_PREFIX ->
+    <<DstAddPrefix:16, _/binary>> = <<DstAdd:128>>,
+    
+    case {SrcAddPrefix, DstAddPrefix} of
+        {?LINK_LOCAL_PREFIX, ?LINK_LOCAL_PREFIX} ->
             {0, CarrInlineMap, CarrInlineList};
-        ?MULTICAST_PREFIX ->
+        {_, ?LINK_LOCAL_PREFIX} ->
             {0, CarrInlineMap, CarrInlineList};
-        ?GLOBAL_PREFIX_1 ->
+        {?LINK_LOCAL_PREFIX, _} ->
             {0, CarrInlineMap, CarrInlineList};
+
+        {?MULTICAST_PREFIX, ?MULTICAST_PREFIX} ->
+            {0, CarrInlineMap, CarrInlineList};
+        {?MULTICAST_PREFIX, _} ->
+            {0, CarrInlineMap, CarrInlineList};
+        {_, ?MULTICAST_PREFIX} ->
+            {0, CarrInlineMap, CarrInlineList};
+
+        {?GLOBAL_PREFIX_1, ?GLOBAL_PREFIX_1}  ->
+            {0, CarrInlineMap, CarrInlineList};
+        {_, ?GLOBAL_PREFIX_1}  ->
+            {0, CarrInlineMap, CarrInlineList};
+        {?GLOBAL_PREFIX_1, _}  ->
+            {0, CarrInlineMap, CarrInlineList};
+
+
         _-> {1, CarrInlineMap, CarrInlineList}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process the Source Address Compression
 % @doc SAC specifies whether the compression is stateless or statefull
 % @returns the compressed value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_sac(SrcAdd) ->
     <<Prefix:16, _/binary>> = <<SrcAdd:128>>,
 
@@ -249,13 +270,13 @@ process_sac(SrcAdd) ->
             1
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process for the Source Address Mode
 % @returns a tuple containing the compressed value and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
-process_sam(SAC, _, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 0 ->
+%---------------------------------------------------------------------------------------
+process_sam(SAC, _CID, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 0 ->
     SrcAddBits = <<SrcAdd:128>>,
     <<_:112, Last16Bits:16>> = SrcAddBits,
     <<_:64, Last64Bits:64>> = SrcAddBits,
@@ -264,23 +285,26 @@ process_sam(SAC, _, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 0 ->
         <<?LINK_LOCAL_PREFIX:16, 0:48, _:24, 16#FFFE:16, _:24>> ->
             % the address is fully elided
             {2#11, CarrInlineMap, CarrInlineList};
+        
+        <<0:128>> ->
+            % O bits he address is fully elided
+            {2#11, CarrInlineMap, CarrInlineList};
+
         <<?LINK_LOCAL_PREFIX:16, 0:48, 16#000000FFFE00:48, _:16>> ->
             Bin = <<Last16Bits:16>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"SAM" => Last16Bits},
-            {2#10, UpdatedMap,
-                % the first 112 bits are elided, last 16 IID bits are carried in-line
-                UpdatedList};
+            % the first 112 bits are elided, last 16 IID bits are carried in-line
+            {2#10, UpdatedMap, UpdatedList};
+
         <<?LINK_LOCAL_PREFIX:16, 0:48, _:64>> ->
-            
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"SAM" => Last64Bits},
-            {2#01, UpdatedMap,
-                % the first 64 bits are elided, last 64 bits (IID) are carried in-line
-                UpdatedList};
+            % the first 64 bits are elided, last 64 bits (IID) are carried in-line
+            {2#01, UpdatedMap, UpdatedList};
         _ ->
             Bin = <<SrcAdd:128>>,
             L = [Bin],
@@ -301,37 +325,34 @@ process_sam(SAC, 1, SrcAdd, CarrInlineMap, CarrInlineList) when SAC == 1 ->
     case SrcAddBits of
         %TODO get context address
         <<0:128>> ->
-            {2#11, CarrInlineMap,
-                % the address is fully elided and derived from the context
-                CarrInlineList};
+            % the address is fully elided and derived from the context
+            {2#11, CarrInlineMap, CarrInlineList};
         <<_:16, _:48, 16#000000FFFE00:48, _:16>> ->
             Bin = <<Last16Bits:16>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"SAM" => Last16Bits},
-            {2#10, UpdatedMap,
-                % the first 64 bits are derived from the context, last 16 IID bits are carried in-line
-                UpdatedList};
-        %TODO how to represente first context 64 bit
+            % the first 64 bits are derived from the context, last 16 IID bits are carried in-line
+            {2#10, UpdatedMap,UpdatedList};
+        %TODO how to represent first context 64 bit
         <<_:16, _:48, _:64>> ->
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"SAM" => Last64Bits},
-            {2#01, UpdatedMap,
-                % the first 64 bits are derived from the context, last 64 bits IID are carried in-line
-                UpdatedList}
+            % the first 64 bits are derived from the context, last 64 bits IID are carried in-line
+            {2#01, UpdatedMap, UpdatedList}
     end.
 
 % _ ->
 %     {2#00,CarrInlineMap, CarrInlineList} %  the unspecified address ::
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process for the Multicast compression
 % @returns the compressed value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_m(DstAdd) ->
     <<Prefix:16, _/bitstring>> = <<DstAdd:128>>,
     case Prefix of
@@ -341,13 +362,13 @@ process_m(DstAdd) ->
             0
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process for the Destination Address Compression
 % @doc DAC specifies whether the compression is stateless or statefull
 % @returns the compressed value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_dac(DstAdd) ->
     <<Prefix:16, _/binary>> = <<DstAdd:128>>,
 
@@ -369,13 +390,13 @@ process_dac(DstAdd) ->
             1
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc process for the Destination Address Mode
-% @param DAC, M, DstAdd, CarrInlineMap
+% @param DAC, M, Cid, DstAdd, CarrInlineMap
 % @returns a tuple containing the compressed value and the CarrInline values
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 process_dam(0, 0, _, DstAdd, CarrInlineMap, CarrInlineList) ->
     DestAddBits = <<DstAdd:128>>,
     <<_:112, Last16Bits:16>> = DestAddBits,
@@ -386,25 +407,24 @@ process_dam(0, 0, _, DstAdd, CarrInlineMap, CarrInlineList) ->
             % the address is fully elided
             {2#11, CarrInlineMap, CarrInlineList};
         <<?LINK_LOCAL_PREFIX:16, 0:48, _:24, 16#FFFE:16, _:24>> ->
-            {2#11, CarrInlineMap,
-                % MAC address is split into two 24-bit parts, FFFE is inserted in the middle
-                CarrInlineList};
+            % MAC address is split into two 24-bit parts, FFFE is inserted in the middle
+            {2#11, CarrInlineMap, CarrInlineList};
+
         <<?LINK_LOCAL_PREFIX:16, 0:48, 16#000000FFFE00:48, _:16>> ->
             Bin = <<Last16Bits:16>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"DAM" => Last16Bits},
-            {2#10, UpdatedMap,
-                % the first 112 bits are elided, last 16 bits are in-line
-                UpdatedList};
-        <<?LINK_LOCAL_PREFIX:16, _:112>> ->
+            % the first 112 bits are elided, last 16 bits are in-line
+            {2#10, UpdatedMap, UpdatedList};
+
+        <<?LINK_LOCAL_PREFIX:16,  0:48, _:64>> ->
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"DAM" => Last64Bits},
-            {2#01, UpdatedMap,
-                % the first 64 bits are elided, last 64 bits are in-line
-                UpdatedList};
+            % the first 64 bits are elided, last 64 bits are in-line
+            {2#01, UpdatedMap, UpdatedList};
         _ ->
             Bin = <<DstAdd:128>>,
             L = [Bin],
@@ -423,26 +443,24 @@ process_dam(0, 1, 1, DstAdd, CarrInlineMap, CarrInlineList) ->
     case DestAddBits of
         %<<?GLOBAL_PREFIX:8,_:8, _:112>> ->
         %   {2#11, CarrInlineMap, CarrInlineList}; % the address is fully elided
-        <<0:128>> ->
-            {2#11, CarrInlineMap, CarrInlineList};
-        <<?GLOBAL_PREFIX_1:16, _:48, 16#000000FFFE00:48,
+        <<0:128>> -> {2#11, CarrInlineMap, CarrInlineList};
+
+        <<?GLOBAL_PREFIX_1:16, _:48, 16#000000FFFE00:48, _:16>> ->
             % MAC address is split into two 24-bit parts, FFFE is inserted in the middle
-            _:16>> ->
             Bin = <<Last16Bits:16>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"DAM" => Last16Bits},
-            {2#10, UpdatedMap,
-                % the first 112 bits are elided, last 16 bits are in-line
-                UpdatedList};
+            % the first 112 bits are elided, last 16 bits are in-line
+            {2#10, UpdatedMap, UpdatedList};
+
         <<?GLOBAL_PREFIX_1:16, _:112>> ->
             Bin = <<Last64Bits:64>>,
             L = [Bin],
             UpdatedList = [CarrInlineList, L],
             UpdatedMap = CarrInlineMap#{"DAM" => Last64Bits},
-            {2#01, UpdatedMap,
-                % the first 64 bits are elided, last 64 bits are in-line
-                UpdatedList};
+            % the first 64 bits are elided, last 64 bits are in-line
+            {2#01, UpdatedMap, UpdatedList};
         _ ->
             %UpdatedList = CarrInlineList++[DstAdd],
 
@@ -504,17 +522,17 @@ process_dam(1, 1, _, DstAdd, CarrInlineMap, CarrInlineList) ->
             {2#00, UpdatedMap, UpdatedList}
     end.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                              Next Header compression
+%                       Next Header compression
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           UDP Packet Compression
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
+%                       UDP Packet Compression
+%---------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %                 Structure of a UDP Datagram Header
 %
 %    0                   1                   2                   3
@@ -578,31 +596,38 @@ process_udp_checksum(Checksum, CarriedInline) ->
             {0, UpdatedList}
     end.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           ICMP Packet Compression
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
+%                       ICMP Packet Compression
+%---------------------------------------------------------------------------------------
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           TCP Packet Compression
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
+%                        TCP Packet Compression
+%---------------------------------------------------------------------------------------
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Packet Compression Helper
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
+%                       Packet Compression Helper
+%---------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 create_iphc_pckt(IphcHeader, Payload) ->
     <<IphcHeader/binary, Payload/bitstring>>.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc return value field of a given Ipv6 packet
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_ipv6_pckt_info(Ipv6Pckt) ->
-    <<Version:4, TrafficClass:8, FlowLabel:20, PayloadLength:16, NextHeader:8, HopLimit:8, SourceAddress:128, DestAddress:128, Payload/bitstring>> =
+    <<Version:4, TrafficClass:8, FlowLabel:20, PayloadLength:16, NextHeader:8, HopLimit:8, SourceAddress:128, DestAddress:128, Data/bitstring>> =
         Ipv6Pckt,
+    
+    Payload = case NextHeader of 
+                ?UDP_PN -> 
+                        <<_UdpFields:64, Payld/bitstring>> = Data,
+                        Payld;
+                _ -> Data
+             end,    
     PckInfo =
         #ipv6PckInfo{
             version = Version,
@@ -617,25 +642,25 @@ get_ipv6_pckt_info(Ipv6Pckt) ->
         },
     PckInfo.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc return UDP data from a given Ipv6 packet if it contains a UDP nextHeader
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_udp_data(Ipv6Pckt) ->
     <<_:320, UdpPckt:64, _/binary>> = Ipv6Pckt,
     UdpPckt.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % return the payload of a given Ipv6 packet
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_ipv6_payload(Ipv6Pckt) ->
     <<_:192, _:128, Payload/binary>> = Ipv6Pckt,
     Payload.
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Encode an Integer value in a binary format using an appropriate amount of bit
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 encode_integer(I) when I =< 255 ->
     <<I:8>>;
 encode_integer(I) when I =< 65535 ->
@@ -646,23 +671,22 @@ encode_integer(I) ->
     <<I:64>>.
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                            Packet fragmentation
+%                               Packet fragmentation
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % returns a binary containing fragmentation header fields
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 build_frag_header(FragHeader) ->
     #frag_header{
         frag_type = FragType,
         datagram_size = DatagramSize,
         datagram_tag = DatagramTag,
         datagram_offset = DatagramOffset
-    } =
-        FragHeader,
+    } = FragHeader,
     <<FragType:5, DatagramSize:11, DatagramTag:16, DatagramOffset:8>>.
 
 build_first_frag_header(FragHeader) ->
@@ -670,19 +694,18 @@ build_first_frag_header(FragHeader) ->
         frag_type = FragType,
         datagram_size = DatagramSize,
         datagram_tag = DatagramTag
-    } =
-        FragHeader,
+    } = FragHeader,
     <<FragType:5, DatagramSize:11, DatagramTag:16>>.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 build_firstFrag_pckt(FragType, DatagramSize, DatagramTag, CompressedHeader, Payload) ->
     %TODO if wireshark doesn't recongnize it, cange it to binary
     %PayloadLen = bit_size(Payload),
     <<FragType:5, DatagramSize:11, DatagramTag:16, CompressedHeader/binary, Payload/bitstring>>.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % create a datagram packet (fragments)
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 build_datagram_pckt(DtgmHeader, Payload) ->
     TYPE = DtgmHeader#frag_header.frag_type,
     case TYPE of
@@ -694,14 +717,14 @@ build_datagram_pckt(DtgmHeader, Payload) ->
             <<Header/binary, Payload/bitstring>>
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % check if a packet needs to be fragmented or not and has a valid size 
 % returns a list of fragments if yes, the orginal packet if not
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 trigger_fragmentation(CompPckt, DatagramTag) when byte_size(CompPckt) =< ?MAX_FRAG_SIZE ->
     PcktLengt = byte_size(CompPckt),
 
-    ValidLength = PcktLengt =< 127,
+    ValidLength = PcktLengt =< ?MAX_FRAME_SIZE,
     case ValidLength of
         false ->
             io:format("The received Ipv6 packet need fragmentation to be transmitted~n"),
@@ -716,12 +739,12 @@ trigger_fragmentation(_CompPckt, _DatagramTag) ->
     {size_err, error_frag_size}.
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc Fragment a given Ipv6 packet
 % @returns a list of fragmented packets having this form:
 % [{FragHeader1, Fragment1}, ..., {FragHeaderN, FragmentN}]
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % fragment_ipv6_packet(CompIpv6Pckt, PacketLen) when is_binary(CompIpv6Pckt) ->
 %     DatagramTag = rand:uniform(65536),
 %     frag_process(CompIpv6Pckt, DatagramTag, PacketLen, 0, []);
@@ -730,7 +753,7 @@ fragment_ipv6_packet(CompIpv6Pckt, DatagramTag) when is_binary(CompIpv6Pckt) ->
     Size = byte_size(CompIpv6Pckt),
     frag_process(CompIpv6Pckt, DatagramTag, Size, 0, []).
  
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc helper function to process the received packet
 % @returns a list of fragmented packets
@@ -742,7 +765,7 @@ fragment_ipv6_packet(CompIpv6Pckt, DatagramTag) when is_binary(CompIpv6Pckt) ->
 %   Offset := integer
 %   Accumulator : list
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 frag_process(<<>>, _, _, _, Acc) ->
     lists:reverse(Acc);
 frag_process(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
@@ -774,9 +797,9 @@ frag_process(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
 
     frag_process(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc]).
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Check if tag exist in the map, if so generate a new one and update the tag map
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 check_tag_unicity(Map, Tag) ->
     Exist = maps:is_key(Tag, Map),
     case Exist of
@@ -789,21 +812,21 @@ check_tag_unicity(Map, Tag) ->
     end.
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                           Header Decompression
+%                                Header Decompression
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
 %get_prefix(ContextId) ->
 %    maps:get(ContextId, ?CONTEXT_TABLE).
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc decompress an Ipv6 packet header commpressed according
 % to the IPHC compression scheme
 % @returns the decompressed Ipv6 packet
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decompress_ipv6_header(CompressedPacket, EUI64) ->
     % first field is the dispatch
     <<_:8, TF:8, NH:8, HLIM:8, CID:8, SAC:8, SAM:8, M:8, DAC:8, DAM:8, Rest/binary>> =
@@ -828,22 +851,22 @@ decompress_ipv6_header(CompressedPacket, EUI64) ->
     %{TrafficClass, FlowLabel, NextHeader, HopLimit, SourceAddress, DestAddress, Payload}.
     DecompressedPckt.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the CID field
 % @returns the decoded ContextID
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_cid(CID, CarriedInline) when CID == 1 ->
     <<Context:16, Rest/binary>> = CarriedInline,
     {Context, Rest}.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the TF field
 % @returns the decoded TrafficClass and FlowLabel value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_tf(TF, CarriedInline) ->
     % TODO, check max value on 20bits for FL, and infer bit split
     <<TrafficClass:8, FL1:8, FL2:8, FL3:8, Rest/bitstring>> = CarriedInline,
@@ -880,22 +903,22 @@ decode_tf(TF, CarriedInline) ->
             {TrafficClass, FlowLabel, Rest}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the NH field
 % @returns the decoded NextHeader value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_next_header(_, CarriedInline) ->
     <<NextHeader:8, Rest/binary>> = CarriedInline,
     {NextHeader, Rest}.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the HLim field
 % @returns the decoded Hop Limit value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_hlim(HLim, CarriedInline) ->
     <<HopLimit:8, Rest/binary>> = CarriedInline,
     case HLim of
@@ -909,12 +932,12 @@ decode_hlim(HLim, CarriedInline) ->
             {HopLimit, Rest}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the SAC field
 % @returns the decoded Source Address Mode value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_sam(SAC, SAM, CarriedInline, MacIID, _) when SAC == 0 ->
     case SAM of
         2#11 ->
@@ -977,12 +1000,12 @@ decode_sam(SAC, SAM, CarriedInline, _, Context) when SAC == 1 ->
             {SrcAdd, CarriedInline}
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @private
 % @doc decode process for the DAC field
 % @returns the decoded Destination Address Mode value
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 decode_dam(M, DAC, DAM, CarriedInline, _, _) when M == 0; DAC == 0 ->
     case DAM of
         2#11 ->
@@ -1068,9 +1091,9 @@ decode_dam(M, DAC, DAM, CarriedInline, _, _) when M == 1; DAC == 1 ->
     end.
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Packet Decompression Helper
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
+%                          Packet Decompression Helper
+%---------------------------------------------------------------------------------------
 
 convert_addr_to_bin(Address)->
     DestAdd = case is_integer(Address) of
@@ -1081,17 +1104,17 @@ convert_addr_to_bin(Address)->
     end,
     DestAdd.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Encode a tuple in a binary format
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 tuple_to_bin(Tuple) ->
     Elements = tuple_to_list(Tuple),
     Binaries = [element_to_binary(Elem) || Elem <- Elements],
     list_to_binary(Binaries).
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Encode an Integer to a binary
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 element_to_binary(Elem) when is_integer(Elem) ->
     encode_integer(Elem);
 element_to_binary(Elem) when is_binary(Elem) ->
@@ -1103,17 +1126,17 @@ element_to_binary(Elem) when is_list(Elem) ->
 
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%----------------------------------------------------------------------------------------
 %
-%                                                               Reassembly
+%                                Reassembly
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % @doc helper function to retrieve datagram info
 % @returns a tuple containing useful datagram fields
 % @end
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 datagram_info(Fragment) ->
     <<FragType:5, Rest/bitstring>> = Fragment,
     case FragType of
@@ -1142,9 +1165,9 @@ datagram_info(Fragment) ->
     end.
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Store the fragment in ETS and check if the datagram is complete
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 store_fragment(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag, _From) ->
     {Result, Map} = case ets:lookup(DatagramMap, Key) of
         [] ->
@@ -1221,9 +1244,9 @@ print_fragments(Fragments) ->
                       Acc
               end, ok, Fragments).
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Reassemble the datagram from stored fragments
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 reassemble(Datagram) ->
     FragmentsMap = Datagram#datagram.fragments,
     % Sort fragments by offset and extract the binary data
@@ -1240,13 +1263,13 @@ reassemble(Datagram) ->
     ).
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                             ROUTING
+%                                    ROUTING
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %                      Mesh Addressing Type and Header
 %
 %    0                   1                   2                   3
@@ -1256,9 +1279,9 @@ reassemble(Datagram) ->
 %   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
 %
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Creates mesh header binary
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 build_mesh_header(MeshHeader) ->
     #mesh_header{
         v_bit = VBit,
@@ -1285,9 +1308,9 @@ build_mesh_header(MeshHeader) ->
     %             OriginatorAddress:16, FinalDestinationAddress:16>>
     % end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Creates new mesh header and returns new datagram
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
     io:format("Building new mesh header~n"),
     VBit =
@@ -1312,9 +1335,9 @@ create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
     BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
     <<BinMeshHeader/binary, Datagram/bitstring>>.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Creates new mesh header
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 create_new_mesh_header(SenderMacAdd, DstMacAdd, Extended_hopsleft) ->
     VBit =
         if
@@ -1347,9 +1370,9 @@ create_new_mesh_header(SenderMacAdd, DstMacAdd, Extended_hopsleft) ->
             SenderMacAdd/binary, DstMacAdd/binary>>
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Returns routing info in mesh header
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_mesh_info(Datagram) ->
     <<_:2, _V:1, _F:1, Hops_left:4, _/bitstring>> = Datagram,
     
@@ -1389,9 +1412,9 @@ get_mesh_info(Datagram) ->
         },
     MeshInfo.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Check if datagram in mesh type, if so return true and mesh header info
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 contains_mesh_header(Datagram) ->
     case Datagram of
         <<Dispatch:2, _/bitstring>> when Dispatch == ?MESH_DHTYPE ->
@@ -1400,9 +1423,9 @@ contains_mesh_header(Datagram) ->
             false
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Remove mesh header if the datagram was meshed (used in put and reasssemble)
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 remove_mesh_header(Datagram, HopsLeft) ->
 
     case Datagram of
@@ -1421,11 +1444,11 @@ remove_mesh_header(Datagram, HopsLeft) ->
             Datagram
     end.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Checks the next hop in the routing table and create new datagram with mesh
 % header if meshing is needed
 % returns a tuple {nexthop:boolean, binary, datagram, macHeader}
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, Hopsleft_extended) ->
 
     case <<DestAddress:128>> of 
@@ -1460,9 +1483,9 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, 
     end.
     
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Generate a EUI64 address from the mac address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 generate_EUI64_mac_addr(MacAddress) when byte_size(MacAddress) == ?SHORT_ADDR_LEN->
     %io:format("Converting short 16bit addr...~n"),
     get_EUI64_from_short_mac(MacAddress);
@@ -1470,9 +1493,9 @@ generate_EUI64_mac_addr(MacAddress) when byte_size(MacAddress) == ?EXTENDED_ADDR
     %io:format("Converting extended 64bit addr...~n"), 
     get_EUI64_from_extended_mac(MacAddress).
             
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Generate a EUI64 address from the 48bit mac address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_EUI64_from_48bit_mac(MacAddress)->
     <<First:24, Last:24>> = MacAddress, 
     <<A:8, Rest:16>> = <<First:24>>,
@@ -1480,17 +1503,17 @@ get_EUI64_from_48bit_mac(MacAddress)->
     EUI64 = <<NewA:8, Rest:16, 16#fffe:16, Last:24>>,
     EUI64.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Generate a EUI64 address from the 64bit extended mac address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_EUI64_from_extended_mac(MacAddress)->
     <<A:8, Rest:56>> = MacAddress,  
     NewA = A bxor 2,   
     <<NewA:8, Rest:56>>.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Generate a EUI64 address from the 16bit short mac address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_EUI64_from_short_mac(MacAddress)->
     PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
     Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
@@ -1500,31 +1523,31 @@ get_EUI64_from_short_mac(MacAddress)->
     EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
     EUI64.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Stateless link local address generation
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 generate_LL_addr(MacAddress)->
     EUI64 = generate_EUI64_mac_addr(MacAddress),
     LLAdd = <<16#FE80:16, 0:48, EUI64/binary>>,
     LLAdd.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Retrieve mac extended address from Ipv6 address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_EUI64_mac_addr(Address) ->
     <<_:64, MacAddr:64/bitstring>> = <<Address:128>>,
     MacAddr.
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 % Retrieve mac shor address from Ipv6 address
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 get_16bit_mac_addr(Address) ->
     <<_:112, MacAddr:16/bitstring>> = <<Address:128>>,
     MacAddr.
 
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %      Multicast Address Mapping
 %
 %     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
@@ -1539,7 +1562,7 @@ generate_multicast_addr(DestAddress)->
     MulticastAddr.
 
 
-%-------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %     Broadcast Header
 %
 %    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 
@@ -1552,11 +1575,11 @@ create_broadcast_header(SeqNum)->
    BC0_Header.
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 %
-%                                                             Utils functions
+%                               Utils functions
 %
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%---------------------------------------------------------------------------------------
 
 print_as_binary(Binary) ->
     Bytes = binary_to_list(Binary),

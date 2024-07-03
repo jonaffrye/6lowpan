@@ -37,10 +37,10 @@
     ?NALP_DHTYPE |
     ?IPV6_DHTYPE |
     ?IPHC_DHTYPE |
-    ?BC0_DHTYPE |
-    ?ESC_DHTYPE |
+    ?BC0_DHTYPE  |
+    ?ESC_DHTYPE  |
     ?MESH_DHTYPE |
-    ?FRAG1_DHTYPE |
+    ?FRAG1_DHTYPE|
     ?FRAGN_DHTYPE.
 
 %---------------------------------------- Fragmentation Type and Header ---------------------------------------------------

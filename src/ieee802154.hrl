@@ -13,7 +13,7 @@
 % PHY_HEADER_ONLY => Not supported in our case
 
 % CSMA constants
--define(MACMAXFRAMERETRIES, 3).
+-define(MACMAXFRAMERETRIES, 5).
 -define(MACACKWAITDURATION, 4000).  % works with 2000 µs but calculations give me 4081µs
 % -define(MACACKWAITDURATION, 2000).  % works with 2000 µs but calculations give me 4081µs
 %
