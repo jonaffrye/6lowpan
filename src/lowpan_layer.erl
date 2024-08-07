@@ -268,8 +268,8 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, M
 
 %---------- States --------------------------------------------------------------------
 
-idle({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft}, Data)->
-    {next_state, 
+%idle({call, From}, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft}, Data)->
+%    {next_state, 
 
 %-------------------------------------------------------------------------------
 idle_state(cast, {forward_datagram, Datagram, IsMeshedPckt, MeshPckInfo, DstMacAdd, CurrNodeMacAdd, FC, MH}, Data) ->
