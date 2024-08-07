@@ -1463,14 +1463,10 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, 
             {false, Header, MHdr};
         _->
             case routing_table:get_route(DestMacAddress) of
-                NextHopMacAddr when NextHopMacAddr =/= DestMacAddress -> % No direct link
-                    io:format("Next hop found: ~p~n", [NextHopMacAddr]),
-                    MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
+                NextHopMacAddr when NextHopMacAddr =/= DestMacAddress ->
                     MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
                     {true, MeshHdrBin, MacHdr};
-
-                NextHopMacAddr when NextHopMacAddr == DestMacAddress -> % Direct link, no meshing needed
-                    io:format("Direct link found ~n"),
+                NextHopMacAddr when NextHopMacAddr == DestMacAddress ->
                     MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},
                     {false, <<>>, MHdr};
 

@@ -208,40 +208,11 @@ handle_Datagram(IsMeshedPckt, MeshPckInfo,OriginatorAddr, FinalDstMacAdd, CurrNo
 %---------- States --------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
-% state: forward, in this state, the node forwards the datagram to the next hop
-%-------------------------------------------------------------------------------
-idle_state(cast, {forward_datagram, Datagram, IsMeshedPckt, MeshPckInfo, DstMacAdd, CurrNodeMacAdd, FC, MH}, Data) ->
-    NewDatagram =
-        case IsMeshedPckt of
-            true ->
-                update_datagram(MeshPckInfo, Datagram, Data);
-            false ->
-                SenderMacAdd = MH#mac_header.src_addr,
-                lowpan:create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd)
-        end,
-    case NewDatagram of
-        {discard, _} ->
-            {next_state, idle_state, Data};
-        _ ->
-            DestMacAddress = lowpan:convert_addr_to_bin(DstMacAdd),
-            io:format("Searching next hop in the routing table...~n"),
-            NextHopAddr = routing_table:get_route(DestMacAddress),
-
-            case NextHopAddr of
-                DestMacAddress ->
-                    io:format("Direct link found~nForwarding to node: ~p", [NextHopAddr]);
-                _ ->
-                    io:format("Next hop found~nForwarding to node: ~p", [NextHopAddr])
-            end,
-            NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopAddr},
-            io:format("------------------------------------------------------~n"),
-            forward_datagram(NewDatagram, FC, NewMH, Data)
-    end;
-    
 
 %-------------------------------------------------------------------------------
-% state: tx_frame, in this state, the node transmit datagram to ieee802154
-%-------------------------------------------------------------------------------
+
+%% @doc State: tx_frame, in this state, the node transmits datagram to ieee802154
+%% @spec idle_state({call, any()}, {tx_frame, binary(), map(), map()}, map()) -> {next_state, atom(), map(), [{reply, any(), any()}]}.
 idle_state({call, From}, {tx_frame, Frame, FrameControl, MacHeader}, Data) ->
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
     case Transmit of
