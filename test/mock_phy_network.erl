@@ -364,6 +364,7 @@ ack_reply(Frame, NetworkNode, Regs) ->
         <<_:2, ?ENABLED:1, _:13, Seqnum:8, _/bitstring>> ->
             % io:format("Ack requested~n"),
             Ack = mac_frame:encode_ack(?DISABLED, Seqnum),
+            %io:format("Ack reply from ieee~n"),
             tx(Ack, #tx_opts{}, NetworkNode, Regs);
         _ ->
             % io:format("No Ack requested~n"),

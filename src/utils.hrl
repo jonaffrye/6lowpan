@@ -21,6 +21,18 @@
     source_address = ?Node1Address,
     destination_address = ?Node2Address
 }).
+
+-define(IPv6Header3, #ipv6_header{
+    version = 6,
+    traffic_class = 0,
+    flow_label = 0,
+    payload_length = ?PayloadLength,
+    next_header = 12,
+    hop_limit = 64,
+    source_address = ?Node1Address,
+    destination_address = ?Node3Address
+}).
+
 -define(FrameControl, #frame_control{
     frame_type = ?FTYPE_DATA,
     src_addr_mode = ?EXTENDED,

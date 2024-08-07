@@ -6,6 +6,7 @@
 
 -export([
     tx/0,
+    tx3/0,
     tx_unc_ipv6/0,
     tx_iphc_pckt/0,
     tx_frag_iphc_pckt/0,
@@ -19,12 +20,16 @@
     tx_broadcast_pckt/0, 
     extended_hopsleft_tx/0, 
     tx_unc_ipv6_udp/0, 
-    tx_comp_ipv6_udp/0
+    tx_comp_ipv6_udp/0, 
+    tx_mesh_prefix/0, 
+    tx_with_metrics/1, 
+    ieeetx2/0, 
+    ieeetx3/0
 ]).
 
 -export([start/2]).
 -export([stop/1]).
-
+ 
 
 %--- Macros --------------------------------------------------------------------
 
@@ -62,7 +67,7 @@ tx_iphc_pckt() ->
 %-------------------------------------------------------------------------------
 tx_msh_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, true),
 
     MeshHeader =
         #mesh_header{
@@ -84,7 +89,7 @@ tx_msh_iphc_pckt() ->
 %-------------------------------------------------------------------------------
 tx_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
     PcktLen = byte_size(Ipv6Pckt),
 
     FragHeader =
@@ -107,7 +112,7 @@ tx_frag_iphc_pckt() ->
 %-------------------------------------------------------------------------------
 tx_msh_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, true),
     PcktLen = byte_size(Ipv6Pckt),
 
     FragHeader =
@@ -140,7 +145,7 @@ tx_msh_frag_iphc_pckt() ->
 %-------------------------------------------------------------------------------
 tx_broadcast_pckt() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt),
+    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
     PcktLen = byte_size(Ipv6Pckt),
 
     FragHeader =
@@ -171,6 +176,11 @@ tx_broadcast_pckt() ->
 %-------------------------------------------------------------------------------
 tx() ->
     Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
+    lowpan_layer:send_packet(Ipv6Pckt).
+
+
+tx3() ->
+    Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header3, ?Payload),
     lowpan_layer:send_packet(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -212,7 +222,7 @@ tx_unc_ipv6_udp() ->
             % 4 bytes for the UDP header
             payload_length = PayloadLength,
             next_header = 17,
-            hop_limit = 64,
+            hop_limit = 255,
             source_address = ?Node1Address,
             destination_address = ?Node2Address
         },
@@ -333,11 +343,76 @@ extended_hopsleft_tx() ->
     lowpan_layer:extended_hopsleft_tx(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
+% Transmission of mesh level packet (mesh-local prefix used)
+%-------------------------------------------------------------------------------
+tx_mesh_prefix() ->
+    MacAddress = lowpan:generate_EUI64_mac_addr(?Node2MacAddress),
+    IPv6Header = #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = byte_size(?Payload),
+            next_header = 12,
+            hop_limit = 64,
+            source_address = ?Node1Address,
+            destination_address =  <<?MESH_LOCAL_PREFIX:16, 16#0DB8:16, 0:32, 2:8,0:48, MacAddress/binary>>
+        },
+    Packet = ipv6:build_ipv6_packet(IPv6Header, ?Payload), 
+    lowpan_layer:send_packet(Packet).
+
+%-------------------------------------------------------------------------------
 % Data reception
 %-------------------------------------------------------------------------------
 rx() ->
     lowpan_layer:frame_reception(), 
     rx().
+
+%-------------------------------------------------------------------------------
+% Transmission of N packets with report of performance and stats
+%-------------------------------------------------------------------------------
+tx_with_metrics(N)->
+    Payload = lowpan:generate_chunks(N),
+    io:format("Payload ~p~n",[Payload]),
+    PayloadLength = byte_size(Payload),
+
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = PayloadLength,
+            next_header = 58,
+            hop_limit = 64,
+            source_address = lowpan:generate_LL_addr(?Node1MacAddress),
+            destination_address = lowpan:generate_LL_addr(?Node3MacAddress)
+        },
+    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    lowpan_layer:send_with_perf_report(Ipv6Pckt).
+
+
+ieeetx2()->
+    FrameControl = #frame_control{
+    frame_type = ?FTYPE_DATA,
+    src_addr_mode = ?EXTENDED,
+    dest_addr_mode = ?EXTENDED}, 
+
+    MacHeader = #mac_header{src_addr = ?Node1MacAddress, 
+                dest_addr = ?Node2MacAddress},
+
+    lowpan_layer:tx(<<"Hello">>, FrameControl, MacHeader).
+
+
+ieeetx3()->
+    FrameControl = #frame_control{
+    frame_type = ?FTYPE_DATA,
+    src_addr_mode = ?EXTENDED,
+    dest_addr_mode = ?EXTENDED}, 
+
+    MacHeader = #mac_header{src_addr = ?Node1MacAddress, 
+                dest_addr = ?Node3MacAddress},
+
+    lowpan_layer:tx(<<"Hello">>, FrameControl, MacHeader).
+
 
 %-------------------------------------------------------------------------------
 % IEEE 802.15.4 setup only for manual configuration
@@ -378,6 +453,8 @@ start(_Type, _Args) ->
     %ieee802154_setup(NodeMacAddr),
 
     lowpan_layer:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
+    
+    %rx(),
     {ok, Supervisor}.
 
 % @private

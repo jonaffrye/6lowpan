@@ -67,8 +67,9 @@
          fragments
          }).
 
--define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload!
--define(MAX_FRAG_SIZE, 2047). % 11 bits datagram_size
+-define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload
+-define(MAX_FRAG_SIZE,58). % Since max frame size is 80 bytes, and lowpan header 30b bytes (17 bytes for meshHeader, 5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
+-define(MAX_DTG_SIZE, 2047). % 11 bits datagram_size
 -define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
@@ -114,19 +115,28 @@
 
 -define(LINK_LOCAL_PREFIX, 16#FE80).
 -define(MULTICAST_PREFIX, 16#FF02).
-%-define(GLOBAL_PREFIX,16#20).
-%-define(GLOBAL_PREFIX_1,16#2000).
 -define(GLOBAL_PREFIX_1, 16#2001).
 -define(GLOBAL_PREFIX_3, 16#2003).
 -define(MESH_LOCAL_PREFIX, 16#FD00).
+-type prefix_type() :: ?LINK_LOCAL_PREFIX | ?GLOBAL_PREFIX_1 | ?MULTICAST_PREFIX.
+
+
 -define(UDP_PN, 17). %PN stands for Protocol Number
 -define(TCP_PN, 6).
 -define(ICMP_PN, 58).
--define(Context_id_table,
-        #{0 => <<16#FD00:16, 0:48>>, % mesh local prefix
-          1 => <<16#2000:16, 0:48>>, % global prefix 1
-          2 => <<16#2001:16, 0:48>>, % global prefix 2
-          3 => <<16#2002:16, 0:48>>}). % global prefix 3
+
+% inspired from Thread Usage of 6LoWPAN
+-define(Context_id_table, 
+        #{1 => <<?MESH_LOCAL_PREFIX:16,16#0DB8:16, 0:32>>, % mesh local prefix
+          2 => <<0:64>>, % cooja mesh local prefix
+          %2 => <<?GLOBAL_PREFIX_1:16, 0:48>>, % global prefix 1
+          3 => <<?GLOBAL_PREFIX_3:16, 0:48>>}). % global prefix 3
+          
+-define(Prefixt_id_table, 
+        #{<<?MESH_LOCAL_PREFIX:16, 0:48>> => 1 , % mesh local prefix
+        <<0:64>> => 2, % cooja mesh local prefix
+       % <<?GLOBAL_PREFIX_1:16, 0:48>> => 2, % global prefix 1
+        <<?GLOBAL_PREFIX_3:16, 0:48>> => 3}). % global prefix 3
                                                                                                                                                                                                                                                                                                                                                           % add more context prefix
 -define(SHORT_ADDR_LEN, 2).
 -define(EXTENDED_ADDR_LEN, 8).
@@ -199,3 +209,12 @@
         #{?node1_addr => ?node2_addr,
           ?node2_addr => ?node2_addr,
           ?node3_addr => ?node3_addr}).
+
+%---------------------------------------------------- Metrics ----------------------------------------------------------------
+-record(metrics, 
+        {ack_counter = 0, 
+        fragments_nbr = 1, 
+        start_time = 0, 
+        end_time = 0,
+        pckt_len = 0, 
+        compressed_pckt_len = 0}).
