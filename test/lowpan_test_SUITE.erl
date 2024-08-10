@@ -67,10 +67,10 @@ pkt_encapsulation_test(_Config) ->
             source_address = <<1>>,
             destination_address = <<2>>
         },
-    IPv6Packet = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    IPv6Packet = ipv6:buildIpv6Packet(IPv6Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
     ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
-    ToCheck = lowpan:pkt_encapsulation(IPv6Header, Payload),
+    ToCheck = lowpan_core:pktEncapsulation(IPv6Header, Payload),
     ok.
 
 % TODO
@@ -78,14 +78,14 @@ pkt_encapsulation_test(_Config) ->
 % Comp pckt encap with correct dispatch
 
 unc_ipv6(_Config) ->
-    Ipv6Pckt = ipv6:build_ipv6_packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
 
     Expected = <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>,
-    Expected = lowpan:get_unc_ipv6(Ipv6Pckt).
+    Expected = lowpan_core:getUncIpv6(Ipv6Pckt).
 
 iphc_pckt_16bit_addr(_Config) ->
-    Node1Addr = lowpan:generate_LL_addr(<<16#0001:16>>),
-    Node2Addr = lowpan:generate_LL_addr(<<16#0002:16>>),
+    Node1Addr = lowpan_core:generateLLAddr(<<16#0001:16>>),
+    Node2Addr = lowpan_core:generateLLAddr(<<16#0002:16>>),
     IPv6Header =
         #ipv6_header{
             version = 6,
@@ -97,14 +97,14 @@ iphc_pckt_16bit_addr(_Config) ->
             source_address = Node1Addr,
             destination_address = Node2Addr
         },
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header,?Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header,?Payload),
 
     InlineData = <<12:8>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, 3:2, 0:1, 2:2, 0:1, 0:1, 3:2, 0:1, 0:1, 3:2, InlineData/binary>>,
 
     % Create the IPHC packet
-    {IPHC, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {IPHC, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("IPHC: ~p~n", [IPHC]),
     io:format("ExpectedHeader: ~p~n", [ExpectedHeader]),
     IPHC = ExpectedHeader.
@@ -115,7 +115,7 @@ iphc_pckt_64bit_addr(_Config) ->
         <<?IPHC_DHTYPE:3, 3:2, 0:1, 2:2, 0:1, 0:1, 1:2, 0:1, 0:1, 1:2, InlineData/binary>>,
 
     % Create the IPHC packet
-    {IPHC, _} = lowpan:compress_ipv6_header(?Ipv6Pckt, false),
+    {IPHC, _} = lowpan_core:compressIpv6Header(?Ipv6Pckt, false),
     io:format("IPHC: ~p~n", [IPHC]),
     io:format("ExpectedHeader: ~p~n", [ExpectedHeader]),
     IPHC = ExpectedHeader.
@@ -130,7 +130,7 @@ msh_pckt(_Config) ->
             final_destination_address = ?Node2MacAddress
         },
 
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = lowpan_core:buildMeshHeader(MeshHeader),
     ExpectedHeader =
         <<?MESH_DHTYPE:2, 0:1, 0:1, 14:4, ?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
 
@@ -138,7 +138,7 @@ msh_pckt(_Config) ->
 
 
 broadcast_pckt(_Config) ->
-    DestMacAddr = lowpan:generate_EUI64_mac_addr(<<16#1234:16>>),
+    DestMacAddr = lowpan_core:generateEUI64MacAddr(<<16#1234:16>>),
     MeshHeader =
         #mesh_header{
             v_bit = 0,
@@ -148,11 +148,11 @@ broadcast_pckt(_Config) ->
             final_destination_address = DestMacAddr
         },
 
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = lowpan_core:buildMeshHeader(MeshHeader),
 
     DestAddr = <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>,
     DestAddress = binary:decode_unsigned(DestAddr),
-    {_, BroadcastHeader, _} = lowpan:get_next_hop(?Node1MacAddress, ?Node1MacAddress, DestMacAddr, DestAddress, 3, false),
+    {_, BroadcastHeader, _} = lowpan_core:getNextHop(?Node1MacAddress, ?Node1MacAddress, DestMacAddr, DestAddress, 3, false),
 
     ExpectedHeader = <<BinMeshHeader/bitstring, ?BC0_DHTYPE, 3:8>>,
 
@@ -179,7 +179,7 @@ link_local_addr_pckt_comp(_Config) ->
             source_address = <<16#FE80:16, 0:48, ?Node1MacAddress/binary>>,
             destination_address = <<16#FE80:16, 0:48, ?Node2MacAddress/binary>>
         },
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -199,12 +199,12 @@ link_local_addr_pckt_comp(_Config) ->
 
     InlineData =
         <<0:8, ?Node1MacAddress/binary,
-            %lowpan:tuple_list_to_binary(ExpectedCarriedInlineList),
+            %lowpan_core:tuple_list_to_binary(ExpectedCarriedInlineList),
             ?Node2MacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
 
@@ -227,7 +227,7 @@ multicast_addr_pckt_comp(_Config) ->
             destination_address = <<16#FF02:16, 0:48, ?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#01,
     Nh = 0,
@@ -258,7 +258,7 @@ multicast_addr_pckt_comp(_Config) ->
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
 
@@ -283,7 +283,7 @@ global_context_pckt_comp1(_Config) ->
             destination_address = Destination_address
         },
 
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#01,
     Nh = 0,
@@ -313,7 +313,7 @@ global_context_pckt_comp1(_Config) ->
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
 
@@ -354,7 +354,7 @@ udp_nh_pckt_comp(_Config) ->
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary, ?UDP_DHTYPE:5, C:1, P:2, UdpInline/binary>>,
 
     Pckt = <<Ipv6Pckt/binary, UdpPckt/binary>>,
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
 
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
@@ -377,7 +377,7 @@ tcp_nh_pckt_comp(_Config) ->
             destination_address = <<16#FE80:16, 0:48,?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -399,7 +399,7 @@ tcp_nh_pckt_comp(_Config) ->
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
 
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
@@ -422,7 +422,7 @@ icmp_nh_pckt_comp(_Config) ->
             destination_address = <<16#FE80:16, 0:48, ?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -444,7 +444,7 @@ icmp_nh_pckt_comp(_Config) ->
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
 
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
     ExpectedHeader = CompressedHeader,
@@ -477,12 +477,12 @@ compress_header_example1_test(_Config) ->
             "NextHeader" => 58,
             "TrafficClass" => 224
         },
-    %lowpan:map_to_binary(ExpectedCarriedInline),
+    %lowpan_core:map_to_binary(ExpectedCarriedInline),
     InlineData = <<0:2, 56:6, 58:8, 1:8>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
 
     ExpectedHeader = CompressedHeader,
@@ -512,7 +512,7 @@ compress_header_example2_test(_Config) ->
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     io:format("Expected ~p~nActual ~p~n", [ExpectedHeader, CompressedHeader]),
 
     ExpectedHeader = CompressedHeader,
@@ -537,8 +537,8 @@ fragmentation_test(_Config) ->
             source_address = <<1>>,
             destination_address = <<2>>
         },
-    IPv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
-    Fragments = lowpan:fragment_ipv6_packet(IPv6Pckt, byte_size(Payload)),
+    IPv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Fragments = lowpan_core:fragmentIpv6Packet(IPv6Pckt, byte_size(Payload)),
     ReassembledSize =
         lists:foldl(fun({_, Fragment}, Acc) -> byte_size(Fragment) + Acc end, 0, Fragments),
     Psize = byte_size(IPv6Pckt),
@@ -549,7 +549,7 @@ datagram_info_test(_Config) ->
     Data = <<"payload">>,
     Fragment = <<?FRAG1_DHTYPE:5, 1000:11, 12345:16, Data/bitstring>>,
 
-    DtgInfo = lowpan:datagram_info(Fragment),
+    DtgInfo = lowpan_core:datagramInfo(Fragment),
     FragType = DtgInfo#datagramInfo.fragtype,
     DatagramSize = DtgInfo#datagramInfo.datagramSize,
     DatagramTag = DtgInfo#datagramInfo.datagramTag,
@@ -582,7 +582,7 @@ reassemble_fragments_list_test(_Config) ->
     },
 
     % Appel de la fonction reassemble/1
-    Reassembled = lowpan:reassemble(Datagram),
+    Reassembled = lowpan_core:reassemble(Datagram),
     <<"Hello World!">> = Reassembled,
     ok.
 
@@ -591,13 +591,13 @@ reassemble_single_fragments_test(_Config) ->
     PayloadLen = byte_size(Data),
 
     DatagramMap = ets:new(datagram_map_test, [named_table, public]),
-    {Result1, _Map1} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 0, <<"Hello ">>, erlang:system_time(second), PayloadLen, 25, self()),
+    {Result1, _Map1} = lowpan_core:storeFragment(DatagramMap, {<<1>>, 25}, 0, <<"Hello ">>, erlang:system_time(second), PayloadLen, 25, self()),
     incomplete_first = Result1,
 
-    {Result2, _Map2} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, 1, <<"World!">>, erlang:system_time(second), PayloadLen, 25, self()),
+    {Result2, _Map2} = lowpan_core:storeFragment(DatagramMap, {<<1>>, 25}, 1, <<"World!">>, erlang:system_time(second), PayloadLen, 25, self()),
     complete = Result2,
 
-    Reassembled = lowpan:reassemble(#datagram{
+    Reassembled = lowpan_core:reassemble(#datagram{
                                         tag = 25,
                                         size = PayloadLen,
                                         cmpt = PayloadLen,
@@ -609,7 +609,7 @@ reassemble_single_fragments_test(_Config) ->
     ok.
 
 reassemble_full_ipv6_pckt_test(_Config) ->
-    Payload = lowpan:generate_chunks(),
+    Payload = lowpan_core:generateChunks(),
     IPv6Header =
         #ipv6_header{
             version = 6,
@@ -622,9 +622,9 @@ reassemble_full_ipv6_pckt_test(_Config) ->
             destination_address = <<2:128>>
         },
 
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
     io:format("Original pckt size ~p bytes~n", [byte_size(Ipv6Pckt)]),
-    FragmentList = lowpan:fragment_ipv6_packet(Ipv6Pckt, byte_size(Ipv6Pckt)),
+    FragmentList = lowpan_core:fragmentIpv6Packet(Ipv6Pckt, byte_size(Ipv6Pckt)),
 
     DatagramMap = ets:new(datagram_map_test, [named_table, public]),
 
@@ -639,7 +639,7 @@ reassemble_full_ipv6_pckt_test(_Config) ->
             end,
 
             io:format("Storing fragment with offset ~p~n", [Offset]),
-            {Result, _Map} = lowpan:store_fragment(DatagramMap, {<<1>>, 25}, Offset, FragPayload, erlang:system_time(second), byte_size(Ipv6Pckt), 25, self()),
+            {Result, _Map} = lowpan_core:storeFragment(DatagramMap, {<<1>>, 25}, Offset, FragPayload, erlang:system_time(second), byte_size(Ipv6Pckt), 25, self()),
             io:format("Fragment stored result: ~p~n", [Result])
         end,
         FragmentList
@@ -648,7 +648,7 @@ reassemble_full_ipv6_pckt_test(_Config) ->
     Datagram = ets:lookup_element(DatagramMap, {<<1>>, 25}, 2),
     io:format("Datagram after storing fragments: ~p~n", [Datagram]),
 
-    Reassembled = lowpan:reassemble(Datagram),
+    Reassembled = lowpan_core:reassemble(Datagram),
     io:format("Reassembled: ~p~nIpv6Pckt: ~p~n", [Reassembled, Ipv6Pckt]),
 
     case Ipv6Pckt of
@@ -694,7 +694,7 @@ cooja_example1(_Config)->
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     Pckt = <<Ipv6Pckt/binary>>,
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
 
     CH = {?IPHC_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
     io:format("Expected~nCarrInlineMap: ~p~nCH: ~p~n", [ExpectedCarriedInline, CH]),
@@ -738,7 +738,7 @@ cooja_example2(_Config)->
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, ?UDP_DHTYPE:5, C:1, P:2, UdpInline/binary>>,
 
     Pckt = <<Ipv6Pckt/binary, UdpPckt/binary>>,
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
 
     CH = {?IPHC_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, UdpInline},
     io:format("Expected~nCarrInlineMap: ~p~nCH: ~p~n", [ExpectedCarriedInline, CH]),
@@ -782,7 +782,7 @@ cooja_example3(_Config)->
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
     Pckt = <<Ipv6Pckt/binary>>,
-    {CompressedHeader, CarriedInlineData} = lowpan:compress_ipv6_header(Pckt, false),
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
 
     CH = {?IPHC_DHTYPE, Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
     io:format("Expected~nCarrInlineMap: ~p~nCH: ~p~n", [ExpectedCarriedInline, CH]),
@@ -799,44 +799,44 @@ cooja_example3(_Config)->
 extended_EUI64_from_48mac(_Config)->
     MacAddr = <<16#9865FD361453:48>>, 
     Expected = <<16#9A65FDFFFE361453:64>>,
-    Result = lowpan:get_EUI64_from_48bit_mac(MacAddr), 
+    Result = lowpan_core:getEUI64From48bitMac(MacAddr), 
     io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
     Result = Expected.  
 
 extended_EUI64_from_64mac(_Config)->
     MacAddr = <<16#00124B0006386C1A:64>>, 
     Expected = <<16#02124B0006386C1A:64>>,
-    Result = lowpan:get_EUI64_from_extended_mac(MacAddr), 
+    Result = lowpan_core:getEUI64FromExtendedMac(MacAddr), 
     io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
     Result = Expected. 
 
 extended_EUI64_from_16mac(_Config)->
     MacAddr = <<16#0001:16>>, 
     Expected = <<16#FDFF:16, 0:8, 16#FFFE:16, 0:8, 16#0001:16>>,
-    Result = lowpan:get_EUI64_from_short_mac(MacAddr), 
+    Result = lowpan_core:getEUI64FromShortMac(MacAddr), 
     io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
     Result = Expected. 
 
 link_local_from_16mac(_Config)->
     MacAddr = <<16#0001:16>>, 
     Expected = <<16#FE80:16, 0:48,16#FDFF:16, 0:8, 16#FFFE:16, 0:8, 16#0001:16>>,
-    Result = lowpan:generate_LL_addr(MacAddr), 
+    Result = lowpan_core:generateLLAddr(MacAddr), 
     io:format("Expected ~p~nResult ~p~n",[Expected, Result]),
     Result = Expected. 
 
 check_tag_unicity(_Config) ->
     TagMap = #{},
     Tag1 = 10,
-    {_, NewTagMap} = lowpan:check_tag_unicity(TagMap, Tag1),
+    {_, NewTagMap} = lowpan_core:checkTagUnicity(TagMap, Tag1),
     Tag2 = 10,
-    {ValidTag2, FinalMap} = lowpan:check_tag_unicity(NewTagMap, Tag2),
+    {ValidTag2, FinalMap} = lowpan_core:checkTagUnicity(NewTagMap, Tag2),
     io:format("TagMap: ~p~n", [FinalMap]),
     ValidTag2 =/= Tag2.
     
 
 multicast_addr_validity(_Config) ->
     Ipv6Addr = <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>, 
-    GenAddr = lowpan:generate_multicast_addr(Ipv6Addr), 
+    GenAddr = lowpan_core:generateMulticastAddr(Ipv6Addr), 
     ExpectedAddr = <<16#9234:16>>, 
     io:format("ExpectedAddr ~p~nGenAddr ~p~n", [ExpectedAddr, GenAddr]),
     GenAddr = ExpectedAddr.

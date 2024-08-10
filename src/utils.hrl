@@ -3,13 +3,13 @@
 %----------------------------------------------Common value for testing purpose---------------------------------------------
 
 -define(Payload, <<"Hello world this is an ipv6 packet for testing purpose">>).
--define(BigPayload, lowpan:generate_chunks()).
+-define(BigPayload, lowpan_core:generateChunks()).
 -define(PayloadLength, byte_size(?Payload)).
 
--define(Node1Address, lowpan:generate_LL_addr(?Node1MacAddress)). % generates a link local address based on the mac address
--define(Node2Address, lowpan:generate_LL_addr(?Node2MacAddress)).
--define(Node3Address, lowpan:generate_LL_addr(?Node3MacAddress)).
--define(Node4Address, lowpan:generate_LL_addr(?Node4MacAddress)).
+-define(Node1Address, lowpan_core:generateLLAddr(?Node1MacAddress)). % generates a link local address based on the mac address
+-define(Node2Address, lowpan_core:generateLLAddr(?Node2MacAddress)).
+-define(Node3Address, lowpan_core:generateLLAddr(?Node3MacAddress)).
+-define(Node4Address, lowpan_core:generateLLAddr(?Node4MacAddress)).
 
 -define(IPv6Header, #ipv6_header{
     version = 6,
@@ -38,7 +38,7 @@
     src_addr_mode = ?EXTENDED,
     dest_addr_mode = ?EXTENDED
 }).
--define(Ipv6Pckt, ipv6:build_ipv6_packet(?IPv6Header, ?Payload)).
+-define(Ipv6Pckt, ipv6:buildIpv6Packet(?IPv6Header, ?Payload)).
 -define(MacHeader, #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).
 
 

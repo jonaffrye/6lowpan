@@ -43,7 +43,7 @@ groups() ->
             {group, multiple_hop_tx_rx},
             {group, nalp_tx_rx}, 
             {group, broadcast_tx_rx},
-            {group, extended_hopsleft_tx_rx}, 
+            {group, extendedHopsleftTx_rx}, 
             {group, big_pyld_routing_tx_rx},
             {group, simple_udp_tx_rx},
             {group, mesh_prefix_tx_rx}
@@ -66,7 +66,7 @@ groups() ->
         {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]},
         {nalp_tx_rx, [sequential], [nalp_sender]}, 
         {broadcast_tx_rx, [parallel, {repeat, 1}], [broadcast_sender, broadcast_receiver]}, 
-        {extended_hopsleft_tx_rx, [parallel, {repeat, 1}], [extended_hopsleft_sender, extended_hopsleft_receiver2, extended_hopsleft_receiver3, extended_hopsleft_receiver4]}, 
+        {extendedHopsleftTx_rx, [parallel, {repeat, 1}], [extended_hopsleft_sender, extended_hopsleft_receiver2, extended_hopsleft_receiver3, extended_hopsleft_receiver4]}, 
         {mesh_prefix_tx_rx, [parallel, {repeat, 1}], [mesh_prefix_sender, mesh_prefix_receiver]}, 
         {benchmark_tx_rx, [parallel, {repeat, 1}], [benchmark_sender, benchmark_receiver]}
     ].
@@ -100,7 +100,7 @@ init_per_group(no_hoplft_dst_reached_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node2Address, ?Payload, Config);
 %--------------------------
 init_per_group(unexpected_dtg_size_tx, Config) ->
-    Payload = lowpan:generate_chunks(120),
+    Payload = lowpan_core:generateChunks(120),
     init_per_group_setup(?Node1Address, ?Node2Address, Payload, Config);
 %--------------------------
 init_per_group(same_tag_different_senders, Config) ->
@@ -124,11 +124,11 @@ init_per_group(nalp_tx_rx, Config) ->
 init_per_group(broadcast_tx_rx, Config) ->
     init_per_group_setup(?Node1Address, <<16#FF02:16, 0:64, 1:16, 16#FF00:16, 16#1234:16>>, ?Payload, Config);
 %--------------------------
-init_per_group(extended_hopsleft_tx_rx, Config) ->
+init_per_group(extendedHopsleftTx_rx, Config) ->
     init_per_group_setup(?Node1Address, ?Node4Address, ?Payload, Config);
 %--------------------------
 init_per_group(mesh_prefix_tx_rx, Config) ->
-    MacAddress = lowpan:generate_EUI64_mac_addr(?Node2MacAddress),
+    MacAddress = lowpan_core:generateEUI64MacAddr(?Node2MacAddress),
     init_per_group_setup(?Node1Address, <<?MESH_LOCAL_PREFIX:16, 16#0DB8:16, 0:32, MacAddress/binary>>, ?Payload, Config);
 %--------------------------
 init_per_group(benchmark_tx_rx, Config) ->
@@ -151,7 +151,7 @@ init_per_group_setup(Src, Dst, Payload, Config) ->
             source_address = Src,
             destination_address = Dst
         },
-    Packet = ipv6:build_ipv6_packet(IPv6Header, Payload), 
+    Packet = ipv6:buildIpv6Packet(IPv6Header, Payload), 
     [
         {net_pid, NetPid},
         {network, Network},
@@ -188,7 +188,7 @@ init_per_group_udp_setup(Src, Dst, Payload, Config) ->
             checksum = 16#f88c
         },
 
-    Packet = ipv6:build_ipv6_udp_packet(IPv6Header, UdpHeader, Payload),
+    Packet = ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
     [
         {net_pid, NetPid},
         {network, Network},
@@ -229,21 +229,21 @@ defaut_sender_init_per_testcase(Config, RoutingTable)->
 defaut_receiver2_init_per_testcase(Config, RoutingTable)->
     Network = ?config(network, Config),
     Node2MacAddress = ?config(node2_mac_address, Config),
-    Callback = fun lowpan_layer:input_callback/4,
+    Callback = fun lowpan_api:inputCallback/4,
     Node = lowpan_node:boot_lowpan_node(node2, Network, Node2MacAddress, Callback, RoutingTable),
     [{node2, Node} | Config].
 
 defaut_receiver3_init_per_testcase(Config, RoutingTable)->
     Network = ?config(network, Config),
     Node3MacAddress = ?config(node3_mac_address, Config),
-    Callback = fun lowpan_layer:input_callback/4,
+    Callback = fun lowpan_api:inputCallback/4,
     Node = lowpan_node:boot_lowpan_node(node3, Network, Node3MacAddress, Callback, RoutingTable),
     [{node3, Node} | Config].
 
 defaut_receiver4_init_per_testcase(Config, RoutingTable)->
     Network = ?config(network, Config),
     Node4MacAddress = ?config(node4_mac_address, Config),
-    Callback = fun lowpan_layer:input_callback/4,
+    Callback = fun lowpan_api:inputCallback/4,
     Node = lowpan_node:boot_lowpan_node(node4, Network, Node4MacAddress, Callback, RoutingTable),
     [{node4, Node} | Config].
 
@@ -251,7 +251,7 @@ defaut_receiver4_init_per_testcase(Config, RoutingTable)->
 broadcast_receiver_init_per_testcase(Config, RoutingTable)->
     Network = ?config(network, Config),
     MacAddress = <<16#9234:16>>,
-    Callback = fun lowpan_layer:input_callback/4,
+    Callback = fun lowpan_api:inputCallback/4,
     Node = lowpan_node:boot_lowpan_node(broadcast_node, Network, MacAddress, Callback, RoutingTable),
     [{broadcast_node, Node} | Config].
 
@@ -394,7 +394,7 @@ init_per_testcase(mesh_prefix_sender, Config) ->
 
 init_per_testcase(mesh_prefix_receiver, Config) ->
     Network = ?config(network, Config),
-    Callback = fun lowpan_layer:input_callback/4,
+    Callback = fun lowpan_api:inputCallback/4,
     Node = lowpan_node:boot_lowpan_node(node2, Network, ?Node2MacAddress, Callback, ?Default_routing_table),
     [{node2, Node} | Config];
 
@@ -453,7 +453,7 @@ end_per_suite(_Config) ->
 simple_pckt_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -464,12 +464,12 @@ simple_pckt_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -484,7 +484,7 @@ simple_pckt_receiver(Config) ->
 simple_udp_pckt_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     Ipv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [Ipv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt]),
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -495,12 +495,12 @@ simple_udp_pckt_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -514,7 +514,7 @@ simple_udp_pckt_receiver(Config) ->
 big_payload_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt2 = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt2]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt2]),
     ct:pal("Big payload sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -525,12 +525,12 @@ big_payload_receiver(Config) ->
     {Pid3, Node3}  = ?config(node3, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node3, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node3, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -546,7 +546,7 @@ multicast_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    {error_multicast_src} = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    {error_multicast_src} = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Multicast Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -560,7 +560,7 @@ unspecified_dst_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    {error_unspecified_addr} = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    {error_unspecified_addr} = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Unspecified Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -572,7 +572,7 @@ unspecified_dst_sender(Config) ->
 routing_req_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Routed packet sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -583,12 +583,12 @@ routing_req_receiver2(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, true),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -598,7 +598,7 @@ routing_req_receiver2(Config) ->
 
 routing_req_receiver3(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
-    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    erpc:call(Node3, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node3, Pid3).
 
 %-------------------------------------------------------------------------------
@@ -607,7 +607,7 @@ routing_req_receiver3(Config) ->
 big_pyld_routing_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Big routed packet sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -617,19 +617,19 @@ big_pyld_routing_sender(Config) ->
 
 big_pyld_routing_receiver2(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
-    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    erpc:call(Node2, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 big_pyld_routing_receiver3(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
     
     IPv6Pckt = ?config(ipv6_packet, Config),
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, true),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node3, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node3, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -653,7 +653,7 @@ discarded_sender(Config) ->
             final_destination_address = ?node3_addr
         },
 
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = lowpan_core:buildMeshHeader(MeshHeader),
 
     Datagram = <<BinMeshHeader/binary, ?Payload/bitstring>>, % meshHeader + Data
 
@@ -664,7 +664,7 @@ discarded_sender(Config) ->
     MacHdr = #mac_header{src_addr =?node1_addr, 
                             dest_addr = ?node2_addr},
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [Datagram, FC, MacHdr]),
+    ok = erpc:call(Node1, lowpan_api, tx, [Datagram, FC, MacHdr]),
     ct:pal("Packet with 1 hop left sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -673,7 +673,7 @@ discarded_sender(Config) ->
 %-------------------------------------------------------------------------------
 discarded_receiver(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
-    dtg_discarded = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    dtg_discarded = erpc:call(Node2, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 
@@ -691,7 +691,7 @@ no_hoplft_dst_reached_sender(Config) ->
             final_destination_address = ?node2_addr
         },
 
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = lowpan_core:buildMeshHeader(MeshHeader),
 
     Datagram = <<BinMeshHeader/binary, ?IPV6_DHTYPE:8, ?Payload/bitstring>>, % meshHeader + Data
 
@@ -702,7 +702,7 @@ no_hoplft_dst_reached_sender(Config) ->
     MacHdr = #mac_header{src_addr =?node1_addr, 
                             dest_addr = ?node2_addr},
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [Datagram, FC, MacHdr]),
+    ok = erpc:call(Node1, lowpan_api, tx, [Datagram, FC, MacHdr]),
     ct:pal("Packet with 0 hop left sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -711,7 +711,7 @@ no_hoplft_dst_reached_sender(Config) ->
 %-------------------------------------------------------------------------------
 no_hoplft_dst_reached_receiver(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
-    Response = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    Response = erpc:call(Node2, lowpan_api, frameReception, []),
     Response = ?Payload,
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
@@ -721,7 +721,7 @@ no_hoplft_dst_reached_receiver(Config) ->
 unexpected_dtg_size_sender(Config) ->
     {Pid1, Node1}  = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    error_frag_size = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    error_frag_size = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
 %-------------------------------------------------------------------------------
@@ -748,8 +748,8 @@ same_tag_different_senders_sender(Config) ->
         datagram_offset = 1
     },
 
-    Frag1 = lowpan:build_datagram_pckt(FragHeader1, Data1),
-    Frag2 = lowpan:build_datagram_pckt(FragHeader2, Data2),
+    Frag1 = lowpan_core:buildDatagramPckt(FragHeader1, Data1),
+    Frag2 = lowpan_core:buildDatagramPckt(FragHeader2, Data2),
 
     MeshHeader1 =
         #mesh_header{
@@ -760,7 +760,7 @@ same_tag_different_senders_sender(Config) ->
             final_destination_address = ?node3_addr
         },
 
-    BinMeshHeader1 = lowpan:build_mesh_header(MeshHeader1),
+    BinMeshHeader1 = lowpan_core:buildMeshHeader(MeshHeader1),
 
     FC1 = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
@@ -778,7 +778,7 @@ same_tag_different_senders_sender(Config) ->
             final_destination_address = ?node3_addr
         },
 
-    BinMeshHeader2 = lowpan:build_mesh_header(MeshHeader2),
+    BinMeshHeader2 = lowpan_core:buildMeshHeader(MeshHeader2),
     FC2 = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
                         src_addr_mode = ?EXTENDED,
@@ -786,11 +786,11 @@ same_tag_different_senders_sender(Config) ->
     MH2 = #mac_header{src_addr = ?node2_addr, 
                         dest_addr = ?node3_addr},
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader1/binary, Frag1/bitstring>>, FC1, MH1]),
-    ok = erpc:call(Node2, lowpan_layer, tx, [<<BinMeshHeader2/binary, Frag1/bitstring>>, FC2, MH2]),
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader1/binary, Frag1/bitstring>>, FC1, MH1]),
+    ok = erpc:call(Node2, lowpan_api, tx, [<<BinMeshHeader2/binary, Frag1/bitstring>>, FC2, MH2]),
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader1/binary, Frag2/bitstring>>, FC1, MH1]),
-    ok = erpc:call(Node2, lowpan_layer, tx, [<<BinMeshHeader2/binary, Frag2/bitstring>>, FC2, MH2]),
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader1/binary, Frag2/bitstring>>, FC1, MH1]),
+    ok = erpc:call(Node2, lowpan_api, tx, [<<BinMeshHeader2/binary, Frag2/bitstring>>, FC2, MH2]),
 
     ct:pal("Fragments sent from node1 and node2 to node3 with the same tag"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
@@ -803,8 +803,8 @@ same_tag_different_senders_receiver(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
 
     % Receive and reassemble the fragments
-    ReceivedData1 = erpc:call(Node3, lowpan_layer, frame_reception, []),
-    ReceivedData2 = erpc:call(Node3, lowpan_layer, frame_reception, []),
+    ReceivedData1 = erpc:call(Node3, lowpan_api, frameReception, []),
+    ReceivedData2 = erpc:call(Node3, lowpan_api, frameReception, []),
 
     ExpectedData = <<"Hello World!">>,
     io:format("Expected: ~p~n~nReceived 1: ~p~n~nReceived 2: ~p~n", [ExpectedData, ReceivedData1, ReceivedData2]),
@@ -835,7 +835,7 @@ timeout_sender(Config) ->
         datagram_offset = 0
     },
 
-    Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
+    Frag1 = lowpan_core:buildDatagramPckt(FragHeader1, <<"Hello ">>),
      MeshHeader1 =
         #mesh_header{
             v_bit = 0,
@@ -845,7 +845,7 @@ timeout_sender(Config) ->
             final_destination_address = ?node2_addr
         },
 
-    BinMeshHeader1 = lowpan:build_mesh_header(MeshHeader1),
+    BinMeshHeader1 = lowpan_core:buildMeshHeader(MeshHeader1),
 
     FC1 = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
@@ -856,7 +856,7 @@ timeout_sender(Config) ->
     
 
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader1/binary, Frag1/bitstring>>, FC1, MH1]),
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader1/binary, Frag1/bitstring>>, FC1, MH1]),
     
     ct:pal("Incomplete payload sent from node1 to node2 to trigger a timeout"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -866,7 +866,7 @@ timeout_sender(Config) ->
 %-------------------------------------------------------------------------------
 timeout_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
-    reassembly_timeout = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    reassembly_timeout = erpc:call(Node2, lowpan_api, frameReception, []),
     ct:pal("Timeout occurred~n"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
@@ -879,11 +879,11 @@ tag_verification_sender(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     % send 5 consecutive packet
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
 
     ct:pal("Big payload sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -895,11 +895,11 @@ tag_verification_receiver(Config) ->
     {Pid2, Node2}  = ?config(node2, Config),
     ExpectedTag0 = 0, ExpectedTag1 = 1, ExpectedTag2 = 2, ExpectedTag3 = 3, ExpectedTag4 = 4,
 
-    ExpectedTag0 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
-    ExpectedTag1 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
-    ExpectedTag2 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
-    ExpectedTag3 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
-    ExpectedTag4 = erpc:call(Node2, lowpan_layer, frame_info_rx, []),
+    ExpectedTag0 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
+    ExpectedTag1 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
+    ExpectedTag2 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
+    ExpectedTag3 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
+    ExpectedTag4 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
 
     ct:pal("Big payload received successfully at node2"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -928,8 +928,8 @@ duplicate_sender(Config) ->
         datagram_offset = 1
     },
 
-    Frag1 = lowpan:build_datagram_pckt(FragHeader1, Data1),
-    Frag2 = lowpan:build_datagram_pckt(FragHeader2, Data2),
+    Frag1 = lowpan_core:buildDatagramPckt(FragHeader1, Data1),
+    Frag2 = lowpan_core:buildDatagramPckt(FragHeader2, Data2),
 
     MeshHeader =
         #mesh_header{
@@ -940,7 +940,7 @@ duplicate_sender(Config) ->
             final_destination_address = ?node2_addr
         },
 
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = lowpan_core:buildMeshHeader(MeshHeader),
 
     FC = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
@@ -949,9 +949,9 @@ duplicate_sender(Config) ->
     MH = #mac_header{src_addr = ?node1_addr, 
                         dest_addr = ?node2_addr},
 
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]),
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]), % duplicated fragment
-    ok = erpc:call(Node1, lowpan_layer, tx, [<<BinMeshHeader/binary, Frag2/bitstring>>, FC, MH]),
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]),
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader/binary, Frag1/bitstring>>, FC, MH]), % duplicated fragment
+    ok = erpc:call(Node1, lowpan_api, tx, [<<BinMeshHeader/binary, Frag2/bitstring>>, FC, MH]),
 
     ct:pal("Fragments sent from node1 and node2 to node3 with the same tag"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -962,7 +962,7 @@ duplicate_sender(Config) ->
 duplicate_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
-    ReceivedData1 = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData1 = erpc:call(Node2, lowpan_api, frameReception, []),
 
     ExpectedData = <<"Hello World!">>,
     io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedData, ReceivedData1]),
@@ -976,7 +976,7 @@ duplicate_receiver(Config) ->
 multiple_hop_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("multi hop packet sent successfully from node1 to node4"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -985,25 +985,25 @@ multiple_hop_sender(Config) ->
 %-------------------------------------------------------------------------------
 multiple_hop_receiver2(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
-    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    erpc:call(Node2, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 
 multiple_hop_receiver3(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
-    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    erpc:call(Node3, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node3, Pid3).
 
 multiple_hop_receiver4(Config) ->
     {Pid4, Node4}  = ?config(node4, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, true),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node4, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node4, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -1029,7 +1029,7 @@ nalp_sender(Config) ->
     MH = #mac_header{src_addr = ?node1_addr, 
         dest_addr = ?node2_addr},
         
-    error_nalp = erpc:call(Node1, lowpan_layer, tx, [Frame, FC, MH]),
+    error_nalp = erpc:call(Node1, lowpan_api, tx, [Frame, FC, MH]),
     ct:pal("NALP error correctly received"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1040,7 +1040,7 @@ nalp_sender(Config) ->
 broadcast_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Broadcast packet sent successfully"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1051,12 +1051,12 @@ broadcast_receiver(Config) ->
     {Pid2, Node2} = ?config(broadcast_node, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -1072,7 +1072,7 @@ broadcast_receiver(Config) ->
 extended_hopsleft_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, extended_hopsleft_tx, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, extendedHopsleftTx, [IPv6Pckt]),
     ct:pal("extended hop left packet sent successfully from node1 to node4"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1081,25 +1081,25 @@ extended_hopsleft_sender(Config) ->
 %-------------------------------------------------------------------------------
 extended_hopsleft_receiver2(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
-    erpc:call(Node2, lowpan_layer, frame_reception, []),
+    erpc:call(Node2, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 
 extended_hopsleft_receiver3(Config) ->
     {Pid3, Node3} = ?config(node3, Config),
-    erpc:call(Node3, lowpan_layer, frame_reception, []),
+    erpc:call(Node3, lowpan_api, frameReception, []),
     lowpan_node:stop_lowpan_node(Node3, Pid3).
 
 extended_hopsleft_receiver4(Config) ->
     {Pid4, Node4}  = ?config(node4, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, true),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node4, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node4, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -1113,7 +1113,7 @@ extended_hopsleft_receiver4(Config) ->
 mesh_prefix_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Broadcast packet sent successfully"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1124,12 +1124,12 @@ mesh_prefix_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
@@ -1145,7 +1145,7 @@ benchmark_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     
     N = 2,
-    Payload = lowpan:generate_chunks(N),
+    Payload = lowpan_core:generateChunks(N),
     io:format("Payload ~p~n",[Payload]),
     PayloadLength = byte_size(Payload),
 
@@ -1157,12 +1157,12 @@ benchmark_sender(Config) ->
             payload_length = PayloadLength,
             next_header = 58,
             hop_limit = 64,
-            source_address = lowpan:generate_LL_addr(?Node1MacAddress),
-            destination_address = lowpan:generate_LL_addr(?Node2MacAddress)
+            source_address = lowpan_core:generateLLAddr(?Node1MacAddress),
+            destination_address = lowpan_core:generateLLAddr(?Node2MacAddress)
         },
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
-    erpc:call(Node1, lowpan_layer, send_packet, [Ipv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt]),
  
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -1174,7 +1174,7 @@ benchmark_receiver(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     N = 2,
-    Payload = lowpan:generate_chunks(N),
+    Payload = lowpan_core:generateChunks(N),
     PayloadLength = byte_size(Payload),
 
     IPv6Header =
@@ -1185,17 +1185,17 @@ benchmark_receiver(Config) ->
             payload_length = PayloadLength,
             next_header = 58,
             hop_limit = 64,
-            source_address = lowpan:generate_LL_addr(?Node1MacAddress),
-            destination_address = lowpan:generate_LL_addr(?Node2MacAddress)
+            source_address = lowpan_core:generateLLAddr(?Node1MacAddress),
+            destination_address = lowpan_core:generateLLAddr(?Node2MacAddress)
         },
-    Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
-    {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
-    PcktInfo = lowpan:get_pckt_info(Ipv6Pckt),
+    {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
+    PcktInfo = lowpan_core:getPcktInfo(Ipv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node2, lowpan_layer, frame_reception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
     io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,

@@ -182,13 +182,13 @@
 
 
 -define(node1_addr,
-        lowpan:generate_EUI64_mac_addr(?Node1MacAddress)).
+        lowpan_core:generateEUI64MacAddr(?Node1MacAddress)).
 -define(node2_addr, 
-        lowpan:generate_EUI64_mac_addr(?Node2MacAddress)).
+        lowpan_core:generateEUI64MacAddr(?Node2MacAddress)).
 -define(node3_addr,
-        lowpan:generate_EUI64_mac_addr(?Node3MacAddress)).
+        lowpan_core:generateEUI64MacAddr(?Node3MacAddress)).
 -define(node4_addr,
-        lowpan:generate_EUI64_mac_addr(?Node4MacAddress)).
+        lowpan_core:generateEUI64MacAddr(?Node4MacAddress)).
 
 -define(Default_routing_table,
         #{?node1_addr => ?node1_addr,

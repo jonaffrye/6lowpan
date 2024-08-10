@@ -1,5 +1,6 @@
 -module(ipv6).
--export([build_ipv6_packet/2, build_ipv6_udp_packet/3, build_ipv6_header/1, build_udp_header/1, get_header/1]).
+-export([buildIpv6UdpPacket/3, buildIpv6Header/1, buildUdpHeader/1, getHeader/1]).
+-export([buildIpv6Packet/2]).
 
 -record(ipv6_header, {
     version = 2#0110, % 4-bit Internet Protocol version number = 6
@@ -23,8 +24,8 @@
 %% @doc Returns an IPv6 header in binary format
 %% @spec build_ipv6_header(#ipv6_header{}) -> binary().
 %-------------------------------------------------------------------------------
--spec build_ipv6_header(#ipv6_header{}) -> binary().
-build_ipv6_header(IPv6Header) ->
+-spec buildIpv6Header(#ipv6_header{}) -> binary().
+buildIpv6Header(IPv6Header) ->
     #ipv6_header{
         version =  _Version,
         traffic_class = Traffic_class, 
@@ -42,8 +43,8 @@ build_ipv6_header(IPv6Header) ->
 %% @doc Extracts the IPv6 header from a packet
 %% @spec get_header(binary()) -> binary().
 %-------------------------------------------------------------------------------
--spec get_header(binary()) -> binary().
-get_header(Ipv6Pckt) ->
+-spec getHeader(binary()) -> binary().
+getHeader(Ipv6Pckt) ->
     <<Header:320, _/bitstring>> = Ipv6Pckt, 
     <<Header:320>>.
 
@@ -51,8 +52,8 @@ get_header(Ipv6Pckt) ->
 %% @doc Returns a UDP header in binary format
 %% @spec build_udp_header(#udp_header{}) -> binary().
 %-------------------------------------------------------------------------------
--spec build_udp_header(#udp_header{}) -> binary().
-build_udp_header(UdpHeader) ->
+-spec buildUdpHeader(#udp_header{}) -> binary().
+buildUdpHeader(UdpHeader) ->
     #udp_header{
         source_port =  SourcePort,
         destination_port = DestinationPort, 
@@ -64,11 +65,11 @@ build_udp_header(UdpHeader) ->
 
 %-------------------------------------------------------------------------------
 %% @doc Builds an IPv6 packet with the given header and payload
-%% @spec build_ipv6_packet(#ipv6_header{}, binary()) -> binary().
+%% @spec buildIpv6Packet(#ipv6_header{}, binary()) -> binary().
 %-------------------------------------------------------------------------------
--spec build_ipv6_packet(#ipv6_header{}, binary()) -> binary().
-build_ipv6_packet(IPv6Header, Payload) ->
-    Header = build_ipv6_header(IPv6Header),
+-spec buildIpv6Packet(#ipv6_header{}, binary()) -> binary().
+buildIpv6Packet(IPv6Header, Payload) ->
+    Header = buildIpv6Header(IPv6Header),
     IPv6Packet = <<Header/binary, Payload/bitstring>>,
     IPv6Packet.
 
@@ -76,9 +77,9 @@ build_ipv6_packet(IPv6Header, Payload) ->
 %% @doc Builds an IPv6 packet with the given IPv6 header, UDP header, and payload
 %% @spec build_ipv6_udp_packet(#ipv6_header{}, #udp_header{}, binary()) -> binary().
 %-------------------------------------------------------------------------------
--spec build_ipv6_udp_packet(#ipv6_header{}, #udp_header{}, binary()) -> binary().
-build_ipv6_udp_packet(IPv6Header, UdpHeader, Payload) ->
-    IpHeader = build_ipv6_header(IPv6Header),
-    UdpH = build_udp_header(UdpHeader),
+-spec buildIpv6UdpPacket(#ipv6_header{}, #udp_header{}, binary()) -> binary().
+buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload) ->
+    IpHeader = buildIpv6Header(IPv6Header),
+    UdpH = buildUdpHeader(UdpHeader),
     IPv6Packet = <<IpHeader/binary, UdpH/binary, Payload/bitstring>>,
     IPv6Packet.

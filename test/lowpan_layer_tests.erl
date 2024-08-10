@@ -19,10 +19,10 @@ pkt_encapsulation_test() ->
             source_address = 1,
             destination_address = 2
         },
-    IPv6Packet = ipv6:build_ipv6_packet(IPv6Header, Payload),
+    IPv6Packet = ipv6:buildIpv6Packet(IPv6Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
     ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
-    ?assertEqual(ToCheck, lowpan:pkt_encapsulation(IPv6Header, Payload)).
+    ?assertEqual(ToCheck, lowpan_core:pkt_encapsulation(IPv6Header, Payload)).
 
 fragmentation_test() ->
     % fragmentation test based on the computation of the size of all fragment payloads
@@ -38,8 +38,8 @@ fragmentation_test() ->
             source_address = 1,
             destination_address = 2
         },
-    IPv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
-    Fragments = lowpan:fragment_ipv6_packet(IPv6Pckt, byte_size(Payload)),
+    IPv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Fragments = lowpan_core:fragment_ipv6_packet(IPv6Pckt, byte_size(Payload)),
 
     %
     ReassembledSize =
@@ -51,7 +51,7 @@ fragmentation_test() ->
 datagram_info_test() ->
     Fragment = <<0:5, 1000:11, 12345:16, 5:8, "payload">>,
 
-    DtgInfo = lowpan:datagram_info(Fragment),
+    DtgInfo = lowpan_core:datagram_info(Fragment),
     FragType = DtgInfo#datagramInfo.fragtype,
     DatagramSize = DtgInfo#datagramInfo.datagramSize,
     DatagramTag = DtgInfo#datagramInfo.datagramTag,
@@ -83,10 +83,10 @@ datagram_info_test() ->
 %             datagram_offset = 1
 %         },
 
-%     Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
-%     Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
+%     Frag1 = lowpan_core:build_datagram_pckt(FragHeader1, <<"Hello ">>),
+%     Frag2 = lowpan_core:build_datagram_pckt(FragHeader2, <<"World!">>),
 %     Fragments = [Frag1, Frag2],
-%     Reassembled = lowpan:reassemble_datagrams(Fragments),
+%     Reassembled = lowpan_core:reassemble_datagrams(Fragments),
 %     ?assertEqual(<<"Hello World!">>, Reassembled).
 
 % reassemble_single_fragments_test() ->
@@ -108,13 +108,13 @@ datagram_info_test() ->
 %             datagram_offset = 1
 %         },
 
-%     Frag1 = lowpan:build_datagram_pckt(FragHeader1, <<"Hello ">>),
-%     Frag2 = lowpan:build_datagram_pckt(FragHeader2, <<"World!">>),
+%     Frag1 = lowpan_core:build_datagram_pckt(FragHeader1, <<"Hello ">>),
+%     Frag2 = lowpan_core:build_datagram_pckt(FragHeader2, <<"World!">>),
 
 %     DatagramMap = maps:new(),
 
-%     {notYetReassembled, IntermediateMap} = lowpan:reassemble_datagram(Frag1, DatagramMap),
-%     {Reassembled, _FinalMap} = lowpan:reassemble_datagram(Frag2, IntermediateMap),
+%     {notYetReassembled, IntermediateMap} = lowpan_core:reassemble_datagram(Frag1, DatagramMap),
+%     {Reassembled, _FinalMap} = lowpan_core:reassemble_datagram(Frag2, IntermediateMap),
 
 %     ?assertEqual(<<"Hello World!">>, Reassembled).
 
@@ -132,15 +132,15 @@ datagram_info_test() ->
 %             source_address = 2,
 %             destination_address = 4
 %         },
-%     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
+%     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
-%     FragmentList = lowpan:fragment_ipv6_packet(Ipv6Pckt),
+%     FragmentList = lowpan_core:fragment_ipv6_packet(Ipv6Pckt),
 %     Fragments =
 %         lists:map(
 %             fun({FragHeader, FragPayload}) -> <<FragHeader/binary, FragPayload/bitstring>> end,
 %             FragmentList
 %         ),
-%     Reassembled = lowpan:reassemble_datagrams(Fragments),
+%     Reassembled = lowpan_core:reassemble_datagrams(Fragments),
 %     ?assertEqual(Ipv6Pckt, Reassembled).
 
 compress_header_ex1_test() ->
@@ -165,7 +165,7 @@ compress_header_ex1_test() ->
         <<6:4, 224:8, 0:20, PayloadLength:16, 58:8, 255:8, SrcAddress/binary, DstAddress/binary,
             Payload/binary>>,
 
-    {CompressedHeader, _, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, _, CarriedInlineData} = lowpan_core:compress_ipv6_header(Ipv6Pckt, false),
     io:format("Expected ~p~nReceived ~p~n", [Expected, CompressedHeader]),
     ?assertEqual(Expected, CompressedHeader),
 
@@ -200,7 +200,7 @@ compress_header_ex2_test() ->
         <<6:4, 0:8, 0:20, PayloadLength:16, 6:8, 64:8, SrcAddress/binary, DstAddress/binary,
             Payload/binary>>,
 
-    {CompressedHeader, _, CarriedInlineData} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
+    {CompressedHeader, _, CarriedInlineData} = lowpan_core:compress_ipv6_header(Ipv6Pckt, false),
     ?assertEqual(Expected, CompressedHeader),
 
     CarriedInlineDataOut = {maps:get("NextHeader", CarriedInlineData)},

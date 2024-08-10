@@ -6,11 +6,11 @@
 -export([
     start/1,  % Changed from start/1 to start/0
     stop/0,
-    add_route/2,
-    delete_route/1,
-    get_route/1,
-    update_route/2,
-    reset_routing_table/0
+    addRoute/2,
+    deleteRoute/1,
+    getRoute/1,
+    updateRoute/2,
+    resetRouting_table/0
 ]).
 
 %%% gen_server callbacks
@@ -23,19 +23,19 @@ start(RoutingTable) ->
 stop() ->
     gen_server:stop(?MODULE).
 
-add_route(DestAddr, NextHAddr) ->
+addRoute(DestAddr, NextHAddr) ->
     gen_server:call(?MODULE, {add_route, DestAddr, NextHAddr}).
 
-delete_route(DestAddr) ->
+deleteRoute(DestAddr) ->
     gen_server:call(?MODULE, {delete_route, DestAddr}).
 
-get_route(DestAddr) ->
+getRoute(DestAddr) ->
     gen_server:call(?MODULE, {get_route, DestAddr}).
 
-update_route(DestAddr, NextHAddr) ->
+updateRoute(DestAddr, NextHAddr) ->
     gen_server:call(?MODULE, {update_route, DestAddr, NextHAddr}).
 
-reset_routing_table() ->
+resetRouting_table() ->
     gen_server:call(?MODULE, reset).
 
 %%% gen_server callbacks
