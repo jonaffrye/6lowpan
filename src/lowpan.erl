@@ -6,7 +6,7 @@
     pkt_encapsulation/2, fragment_ipv6_packet/2,
     reassemble/1, store_fragment/8, create_iphc_pckt/2, get_ipv6_pkt/2, datagram_info/1,
     compress_ipv6_header/2, build_datagram_pckt/2, build_firstFrag_pckt/5,
-    get_ipv6_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
+    get_pckt_info/1, get_ipv6_payload/1, trigger_fragmentation/2,
     decode_ipv6_pckt/4, encode_integer/1,
     tuple_to_bin/1, build_frag_header/1, get_next_hop/6, print_as_binary/1,
     hex_to_binary/1, complete_with_padding/1, generate_chunks/0, generate_chunks/1,
@@ -66,7 +66,7 @@ get_unc_ipv6(Ipv6Pckt) ->
       Ipv6Pckt :: binary(),
       RouteExist :: boolean().
 compress_ipv6_header(Ipv6Pckt, RouteExist) ->
-    PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
+    PcktInfo = get_pckt_info(Ipv6Pckt),
 
     TrafficClass = PcktInfo#ipv6PckInfo.trafficClass,
     FlowLabel = PcktInfo#ipv6PckInfo.flowLabel,
@@ -623,12 +623,12 @@ create_iphc_pckt(IphcHeader, Payload) ->
     <<IphcHeader/binary, Payload/bitstring>>.
 
 %---------------------------------------------------------------------------------------
-%% @spec get_ipv6_pckt_info(Ipv6Pckt) -> map().
+%% @spec get_pckt_info(Ipv6Pckt) -> map().
 %% @doc return value field of a given Ipv6 packet
 %---------------------------------------------------------------------------------------
--spec get_ipv6_pckt_info(Ipv6Pckt) -> map() when
+-spec get_pckt_info(Ipv6Pckt) -> map() when
       Ipv6Pckt :: binary().
-get_ipv6_pckt_info(Ipv6Pckt) ->
+get_pckt_info(Ipv6Pckt) ->
     <<Version:4, TrafficClass:8, FlowLabel:20, PayloadLength:16, NextHeader:8, HopLimit:8, SourceAddress:128, DestAddress:128, Data/bitstring>> =
         Ipv6Pckt,
     
@@ -788,7 +788,7 @@ CompPckt) =< ?MAX_DTG_SIZE ->
     case ValidLength of
         false ->
             io:format("The received Ipv6 packet needs fragmentation to be transmitted~n"),
-            Fragments = lowpan:fragment_ipv6_packet(CompPckt, DatagramTag),
+            Fragments = fragment_ipv6_packet(CompPckt, DatagramTag),
             {true, Fragments};
         true ->
             io:format("No fragmentation needed~n"),
@@ -1180,7 +1180,7 @@ decode_checksum(C, Inline) ->
 convert_addr_to_bin(Address) ->
     DestAdd = case is_integer(Address) of
         true -> 
-            lowpan:encode_integer(Address);
+            encode_integer(Address);
         false ->
             Address
     end,
@@ -1402,7 +1402,7 @@ create_new_mesh_datagram(Datagram, SenderMacAdd, DstMacAdd) ->
             originator_address = SenderMacAdd,
             final_destination_address = DstMacAdd
         },
-    BinMeshHeader = lowpan:build_mesh_header(MeshHeader),
+    BinMeshHeader = build_mesh_header(MeshHeader),
     <<BinMeshHeader/binary, Datagram/bitstring>>.
 
 %---------------------------------------------------------------------------------------
@@ -1468,7 +1468,7 @@ get_mesh_info(Datagram) ->
 contains_mesh_header(Datagram) ->
     case Datagram of
         <<Dispatch:2, _/bitstring>> when Dispatch == ?MESH_DHTYPE ->
-            {true, lowpan:get_mesh_info(Datagram)};
+            {true, get_mesh_info(Datagram)};
         _ ->
             false
     end.
@@ -1507,7 +1507,7 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, 
             Multicast_EU64 = generate_EUI64_mac_addr(MulticastAddr),
             MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = Multicast_EU64},
             BroadcastHeader = create_broadcast_header(SeqNum),
-            MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
+            MeshHdrBin = create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
             Header = <<MeshHdrBin/bitstring, BroadcastHeader/bitstring>>,
             {false, Header, MHdr};
         _->
@@ -1515,7 +1515,7 @@ get_next_hop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, 
                 NextHopMacAddr when NextHopMacAddr =/= DestMacAddress ->
                     io:format("Next hop found: ~p~n", [NextHopMacAddr]),
                     MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
-                    MeshHdrBin = lowpan:create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
+                    MeshHdrBin = create_new_mesh_header(SenderMacAdd, DestMacAddress, Hopsleft_extended),
                     {true, MeshHdrBin, MacHdr};
                 NextHopMacAddr when NextHopMacAddr == DestMacAddress ->
                     io:format("Direct link found ~n"),
@@ -1531,7 +1531,7 @@ get_next_hop(CurrNodeMacAdd, DestMacAddress) ->
     case routing_table:get_route(DestMacAddress) of
         NextHopMacAddr when NextHopMacAddr =/= DestMacAddress ->
         MacHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopMacAddr},
-        MeshHdrBin = lowpan:create_new_mesh_header(CurrNodeMacAdd, DestMacAddress, ?DeepHopsLeft),
+        MeshHdrBin = create_new_mesh_header(CurrNodeMacAdd, DestMacAddress, ?DeepHopsLeft),
         {true, MeshHdrBin, MacHdr};
     NextHopMacAddr when NextHopMacAddr == DestMacAddress ->
         MHdr = #mac_header{src_addr = CurrNodeMacAdd, dest_addr = DestMacAddress},

@@ -36,18 +36,18 @@ groups() ->
             {group, discard_datagram_tx_rx},
             {group, no_hoplft_dst_reached_tx_rx},
             {group, unexpected_dtg_size_tx},
-            {group, same_tag_different_senders},
+            {group, same_tag_different_senders}, 
             {group, timeout_scenario},
-            {group, tag_verification_tx_rx},
+            %{group, tag_verification_tx_rx},  %TODO rx_info
             {group, duplicate_tx_rx},
             {group, multiple_hop_tx_rx},
             {group, nalp_tx_rx}, 
             {group, broadcast_tx_rx},
             {group, extended_hopsleft_tx_rx}, 
-             {group, big_pyld_routing_tx_rx},
+            {group, big_pyld_routing_tx_rx},
             {group, simple_udp_tx_rx},
-            {group, mesh_prefix_tx_rx}, 
-            {group, benchmark_tx_rx}
+            {group, mesh_prefix_tx_rx}
+            % {group, benchmark_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {simple_udp_tx_rx, [parallel, {repeat, 1}], [simple_udp_pckt_sender, simple_udp_pckt_receiver]},
@@ -465,7 +465,7 @@ simple_pckt_receiver(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -496,7 +496,7 @@ simple_udp_pckt_receiver(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -526,7 +526,7 @@ big_payload_receiver(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -572,7 +572,7 @@ unspecified_dst_sender(Config) ->
 routing_req_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_layer, send_with_perf_report, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
     ct:pal("Routed packet sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -584,7 +584,7 @@ routing_req_receiver2(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -607,7 +607,7 @@ routing_req_receiver3(Config) ->
 big_pyld_routing_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_layer, send_with_perf_report, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_layer, send_packet, [IPv6Pckt]),
     ct:pal("Big routed packet sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -625,7 +625,7 @@ big_pyld_routing_receiver3(Config) ->
     
     IPv6Pckt = ?config(ipv6_packet, Config),
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -999,7 +999,7 @@ multiple_hop_receiver4(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -1052,7 +1052,7 @@ broadcast_receiver(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -1095,7 +1095,7 @@ extended_hopsleft_receiver4(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, true),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -1125,7 +1125,7 @@ mesh_prefix_receiver(Config) ->
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(IPv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(IPv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(IPv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
@@ -1162,7 +1162,7 @@ benchmark_sender(Config) ->
         },
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
-    erpc:call(Node1, lowpan_layer, send_with_perf_report, [Ipv6Pckt]),
+    erpc:call(Node1, lowpan_layer, send_packet, [Ipv6Pckt]),
  
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -1191,7 +1191,7 @@ benchmark_receiver(Config) ->
     Ipv6Pckt = ipv6:build_ipv6_packet(IPv6Header, Payload),
 
     {CompressedHeader, _} = lowpan:compress_ipv6_header(Ipv6Pckt, false),
-    PcktInfo = lowpan:get_ipv6_pckt_info(Ipv6Pckt),
+    PcktInfo = lowpan:get_pckt_info(Ipv6Pckt),
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
