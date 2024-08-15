@@ -4,7 +4,7 @@
 
 %%% API
 -export([
-    start/1,  % Changed from start/1 to start/0
+    start_link/1,  
     stop/0,
     addRoute/2,
     deleteRoute/1,
@@ -17,8 +17,9 @@
 -export([init/1, handle_call/3, handle_cast/2, terminate/2, code_change/3]).
 
 %%% API functions
-start(RoutingTable) ->
-    gen_server:start({local, ?MODULE}, ?MODULE, RoutingTable, []).
+
+start_link(RoutingTable) ->
+    gen_server:start_link({local, ?MODULE}, ?MODULE, RoutingTable, []).
 
 stop() ->
     gen_server:stop(?MODULE).
@@ -41,6 +42,7 @@ resetRouting_table() ->
 %%% gen_server callbacks
 init(RoutingTable) ->
     {ok, RoutingTable}.
+
 
 handle_call({add_route, DestAddr, NextHAddr}, _From, RoutingTable) ->
     NewTable = maps:put(DestAddr, NextHAddr, RoutingTable),

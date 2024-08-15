@@ -13,14 +13,7 @@ Compressed packet size: 73 bytes
 No fragmentation needed
 Routing check...
 Next hop found: <<200,254,222,202,0,0,0,2>>
-New mesh header created: {mesh_header,2,0,0,10,
-                                      <<200,254,222,202,0,0,0,1>>,
-                                      <<200,254,222,202,0,0,0,3>>}
 Sending 90 bytes
-MH {mac_header,0,<<"��">>,
-               <<200,254,222,202,0,0,0,2>>,
-               <<"��">>,
-               <<200,254,222,202,0,0,0,1>>}
 ok
 
 
@@ -33,8 +26,10 @@ nonode@nohost: Routing table server successfully launched
 nonode@nohost IEEE 802.15.4 layer successfully launched 
 nonode@nohost: 6lowpan layer successfully launched
 ----------------------------------------------------------------------------------------
-robot:rx().
-nonode@nohost waiting to receive data... 
+1> robot:rx().
+-------------------------------------------------------------------------
+
+Reception mode
 New frame received
 <<138,200,254,222,202,0,0,0,1,200,254,222,202,0,0,0,3,122,17,10,200,254,222,
   202,0,0,0,1,200,254,222,202,0,0,0,3,72,101,108,108,111,32,119,111,114,108,

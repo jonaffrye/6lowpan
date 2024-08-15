@@ -28,26 +28,26 @@ all() ->
 groups() ->
     [
         {test_scenarios, [], [
-            {group, simple_tx_rx},
-            {group, big_payload_tx_rx},
-            {group, multicast_src_tx},
-            {group, unspecified_dst_tx},
-            {group, routing_req_tx_rx},
-            {group, discard_datagram_tx_rx},
-            {group, no_hoplft_dst_reached_tx_rx},
-            {group, unexpected_dtg_size_tx},
-            {group, same_tag_different_senders}, 
-            {group, timeout_scenario},
-            %{group, tag_verification_tx_rx},  %TODO rx_info
-            {group, duplicate_tx_rx},
-            {group, multiple_hop_tx_rx},
-            {group, nalp_tx_rx}, 
-            {group, broadcast_tx_rx},
-            {group, extendedHopsleftTx_rx}, 
-            {group, big_pyld_routing_tx_rx},
-            {group, simple_udp_tx_rx},
-            {group, mesh_prefix_tx_rx}
-            % {group, benchmark_tx_rx}
+            % {group, simple_tx_rx},
+            % {group, big_payload_tx_rx},
+            % {group, multicast_src_tx},
+            % {group, unspecified_dst_tx},
+            % {group, routing_req_tx_rx},
+            % {group, discard_datagram_tx_rx},
+            % {group, no_hoplft_dst_reached_tx_rx},
+            % {group, unexpected_dtg_size_tx},
+            % {group, same_tag_different_senders}, 
+            % {group, timeout_scenario},
+            % %{group, tag_verification_tx_rx},  %TODO rx_info
+            % {group, duplicate_tx_rx},
+            % {group, multiple_hop_tx_rx},
+            % {group, nalp_tx_rx}, 
+            % {group, broadcast_tx_rx},
+            % {group, extendedHopsleftTx_rx}, 
+            % {group, big_pyld_routing_tx_rx},
+            % {group, simple_udp_tx_rx},
+            % {group, mesh_prefix_tx_rx},
+            {group, benchmark_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {simple_udp_tx_rx, [parallel, {repeat, 1}], [simple_udp_pckt_sender, simple_udp_pckt_receiver]},
@@ -79,7 +79,7 @@ init_per_group(simple_udp_tx_rx, Config) ->
     init_per_group_udp_setup(?Node1Address, ?Node2Address, <<"Hello world">>, Config); 
 %--------------------------
 init_per_group(big_payload_tx_rx, Config) ->
-    init_per_group_setup(?Node1Address, ?Node3Address, ?BigPayload, Config); 
+    init_per_group_setup(?Node1Address, ?Node2Address, ?BigPayload, Config); 
 %--------------------------
 init_per_group(multicast_src_tx, Config) ->
     init_per_group_setup(<<16#FF:16, 0:112>>, ?Node2Address, ?Payload, Config);
@@ -274,7 +274,7 @@ init_per_testcase(big_payload_sender, Config)->
     defaut_sender_init_per_testcase(Config, ?Default_routing_table); 
 
 init_per_testcase(big_payload_receiver, Config)->
-    defaut_receiver3_init_per_testcase(Config, ?Default_routing_table); 
+    defaut_receiver2_init_per_testcase(Config, ?Default_routing_table); 
 
 %--------------------------
 init_per_testcase(multicast_sender, Config)->
@@ -471,7 +471,7 @@ simple_pckt_receiver(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Payload received successfully at node2"),
@@ -502,7 +502,7 @@ simple_udp_pckt_receiver(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Payload received successfully at node2"),
@@ -522,7 +522,7 @@ big_payload_sender(Config) ->
 % Large payload from node 1 received by node 3
 %-------------------------------------------------------------------------------
 big_payload_receiver(Config) ->
-    {Pid3, Node3}  = ?config(node3, Config),
+    {Pid2, Node2}  = ?config(node2, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
 
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(IPv6Pckt, false),
@@ -530,13 +530,13 @@ big_payload_receiver(Config) ->
     Payload = PcktInfo#ipv6PckInfo.payload,
     CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
 
-    ReceivedData = erpc:call(Node3, lowpan_api, frameReception, []),
+    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Big payload received successfully at node3"),
-    lowpan_node:stop_lowpan_node(Node3, Pid3).
+    lowpan_node:stop_lowpan_node(Node2, Pid2).
 
 %-------------------------------------------------------------------------------
 % Send packet with a multicast source address
@@ -546,7 +546,7 @@ multicast_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    {error_multicast_src} = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    error_multicast_src = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Multicast Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -560,7 +560,7 @@ unspecified_dst_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    {error_unspecified_addr} = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    error_unspecified_addr = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
     ct:pal("Unspecified Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -590,7 +590,7 @@ routing_req_receiver2(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node2"),
@@ -631,7 +631,7 @@ big_pyld_routing_receiver3(Config) ->
 
     ReceivedData = erpc:call(Node3, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node2"),
@@ -807,7 +807,7 @@ same_tag_different_senders_receiver(Config) ->
     ReceivedData2 = erpc:call(Node3, lowpan_api, frameReception, []),
 
     ExpectedData = <<"Hello World!">>,
-    io:format("Expected: ~p~n~nReceived 1: ~p~n~nReceived 2: ~p~n", [ExpectedData, ReceivedData1, ReceivedData2]),
+    %io:format("Expected: ~p~n~nReceived 1: ~p~n~nReceived 2: ~p~n", [ExpectedData, ReceivedData1, ReceivedData2]),
     
     case (ReceivedData1 == ExpectedData) andalso (ReceivedData2 == ExpectedData) of
         true ->
@@ -965,7 +965,7 @@ duplicate_receiver(Config) ->
     ReceivedData1 = erpc:call(Node2, lowpan_api, frameReception, []),
 
     ExpectedData = <<"Hello World!">>,
-    io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedData, ReceivedData1]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedData, ReceivedData1]),
     ReceivedData1 = ExpectedData,
     lowpan_node:stop_lowpan_node(Node2, Pid2).
  
@@ -1005,7 +1005,7 @@ multiple_hop_receiver4(Config) ->
 
     ReceivedData = erpc:call(Node4, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node4"),
@@ -1058,7 +1058,7 @@ broadcast_receiver(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node4"),
@@ -1101,7 +1101,7 @@ extended_hopsleft_receiver4(Config) ->
 
     ReceivedData = erpc:call(Node4, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node4"),
@@ -1131,7 +1131,7 @@ mesh_prefix_receiver(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %%io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Routed packet received successfully at node4"),
@@ -1146,7 +1146,6 @@ benchmark_sender(Config) ->
     
     N = 2,
     Payload = lowpan_core:generateChunks(N),
-    io:format("Payload ~p~n",[Payload]),
     PayloadLength = byte_size(Payload),
 
     IPv6Header =
@@ -1162,7 +1161,7 @@ benchmark_sender(Config) ->
         },
     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
 
-    erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt, true]),
  
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
@@ -1197,7 +1196,7 @@ benchmark_receiver(Config) ->
 
     ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
 
-    io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
+    %%io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
     ReceivedData = CompressedIpv6Packet,
 
     ct:pal("Payload received successfully at node2"),

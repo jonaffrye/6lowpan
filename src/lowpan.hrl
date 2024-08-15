@@ -68,7 +68,8 @@
          }).
 
 -define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload
--define(MAX_FRAG_SIZE,58). % Since max frame size is 80 bytes, and lowpan header 30b bytes (17 bytes for meshHeader, 5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
+-define(MAX_FRAG_SIZE_NoMESH,75). % Since max frame size is 80 bytes, and lowpan header 30b bytes (5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
+-define(MAX_FRAG_SIZE_MESH,58).% Since max frame size is 80 bytes, and lowpan header 30b bytes (17 bytes for meshHeader, 5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
 -define(MAX_DTG_SIZE, 2047). % 11 bits datagram_size
 -define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
@@ -174,6 +175,7 @@
 -define(Node2MacAddress, <<16#CAFEDECA00000002:64>>).
 -define(Node3MacAddress, <<16#CAFEDECA00000003:64>>).
 -define(Node4MacAddress, <<16#CAFEDECA00000004:64>>).
+-define(Node5MacAddress, <<16#CAFEDECA00000005:64>>).
 
 % Used to test 16-bit node addresses 
 % -define(Node1MacAddress, <<16#0001:16>>).

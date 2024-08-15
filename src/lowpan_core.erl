@@ -3,10 +3,10 @@
 -include("lowpan.hrl").
 
 -export([
-    pktEncapsulation/2, fragmentIpv6Packet/2,
+    pktEncapsulation/2, fragmentIpv6Packet/3,
     reassemble/1, storeFragment/8, createIphcPckt/2, getIpv6Pkt/2, datagramInfo/1,
     compressIpv6Header/2, buildDatagramPckt/2, buildFirstFragPckt/5,
-    getPcktInfo/1, getIpv6Payload/1, triggerFragmentation/2,
+    getPcktInfo/1, getIpv6Payload/1, triggerFragmentation/3,
     decodeIpv6Pckt/4, encodeInteger/1,
     tupleToBin/1, buildFragHeader/1, getNextHop/6, printAsBinary/1,
     hexToBinary/1, completeWithPadding/1, generateChunks/0, generateChunks/1,
@@ -769,22 +769,22 @@ buildDatagramPckt(DtgmHeader, Payload) ->
 %% @doc check if a packet needs to be fragmented or not and has a valid size 
 %% returns a list of fragments if yes, the orginal packet if not
 %---------------------------------------------------------------------------------------
--spec triggerFragmentation(binary(), integer()) -> {boolean(), list()} | {atom(), atom()}.
-triggerFragmentation(CompPckt, DatagramTag) when byte_size(CompPckt) =< ?MAX_DTG_SIZE ->
+-spec triggerFragmentation(binary(), integer(), boolean()) -> {boolean(), list()} | {size_err, error_frag_size}.
+triggerFragmentation(CompPckt, DatagramTag, RouteExist) when byte_size(CompPckt) =< ?MAX_DTG_SIZE ->
     PcktLengt = byte_size(CompPckt),
 
     ValidLength = PcktLengt =< ?MAX_FRAME_SIZE,
     case ValidLength of
         false ->
             io:format("The received Ipv6 packet needs fragmentation to be transmitted~n"),
-            Fragments = fragmentIpv6Packet(CompPckt, DatagramTag),
+            Fragments = fragmentIpv6Packet(CompPckt, DatagramTag, RouteExist),
             {true, Fragments};
         true ->
             io:format("No fragmentation needed~n"),
             {false, CompPckt}
     end; 
 
-triggerFragmentation(_CompPckt, _DatagramTag) ->
+triggerFragmentation(_CompPckt, _DatagramTag, _RouteExist) ->
     {size_err, error_frag_size}.
 
 %---------------------------------------------------------------------------------------
@@ -793,10 +793,10 @@ triggerFragmentation(_CompPckt, _DatagramTag) ->
 %% @returns a list of fragmented packets having this form:
 %% [{FragHeader1, Fragment1}, ..., {FragHeaderN, FragmentN}]
 %---------------------------------------------------------------------------------------
--spec fragmentIpv6Packet(binary(), integer()) -> list().
-fragmentIpv6Packet(CompIpv6Pckt, DatagramTag) when is_binary(CompIpv6Pckt) ->
+-spec fragmentIpv6Packet(binary(), integer(), boolean()) -> list().
+fragmentIpv6Packet(CompIpv6Pckt, DatagramTag, RouteExist) when is_binary(CompIpv6Pckt) ->
     Size = byte_size(CompIpv6Pckt),
-    fragProcess(CompIpv6Pckt, DatagramTag, Size, 0, []).
+    fragProcess(CompIpv6Pckt, DatagramTag, Size, 0, [], RouteExist).
 
 %---------------------------------------------------------------------------------------
 %% @private
@@ -811,11 +811,14 @@ fragmentIpv6Packet(CompIpv6Pckt, DatagramTag) when is_binary(CompIpv6Pckt) ->
 %%   Offset := integer
 %%   Accumulator : list
 %---------------------------------------------------------------------------------------
--spec fragProcess(binary(), integer(), integer(), integer(), list()) -> list().
-fragProcess(<<>>, _, _, _, Acc) ->
+-spec fragProcess(binary(), integer(), integer(), integer(), list(), boolean()) -> list().
+fragProcess(<<>>, _DatagramTag, _PacketLen, _Offset, Acc, _RouteExist) ->
     lists:reverse(Acc);
-fragProcess(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
-    MaxSize = ?MAX_FRAG_SIZE, 
+fragProcess(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc, RouteExist) ->
+    MaxSize = case RouteExist of
+        true-> ?MAX_FRAG_SIZE_MESH; 
+        false -> ?MAX_FRAG_SIZE_NoMESH
+    end,
     PcktSize = byte_size(CompIpv6Pckt),
     FragmentSize = min(PcktSize, MaxSize),
 
@@ -840,7 +843,7 @@ fragProcess(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc) ->
                 })
     end,
 
-    fragProcess(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc]).
+    fragProcess(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc], RouteExist).
 
 %---------------------------------------------------------------------------------------
 %% @spec checkTagUnicity(map(), integer()) -> {integer(), map()}.
@@ -1481,7 +1484,15 @@ removeMeshHeader(Datagram, HopsLeft) ->
 %% header if meshing is needed
 %% returns a tuple {nexthop:boolean, binary, datagram, macHeader}
 %---------------------------------------------------------------------------------------
--spec getNextHop(binary(), binary(), binary(), binary(), integer(), boolean()) -> {boolean(), binary(), map()} | {boolean(), binary(), map(), map()}.
+-spec getNextHop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, HopsleftExtended) -> 
+      {boolean(), binary(), mac_header()} 
+      when 
+      CurrNodeMacAdd :: binary(),
+      SenderMacAdd :: binary(),
+      DestMacAddress :: binary(),
+      DestAddress :: binary(),
+      SeqNum :: integer(),
+      HopsleftExtended :: boolean().
 getNextHop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, Hopsleft_extended) ->
     case <<DestAddress:128>> of 
         <<16#FF:8,_/binary>> ->

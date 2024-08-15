@@ -1,38 +1,36 @@
 ---------------SENDER---------------------------
-
-nonode@nohost: Stack successfully launched
+Initialization
+Current node address: <<202,254,222,202,0,0,0,1>>
 nonode@nohost: Routing table server successfully launched
-Current node mac address: <<202,254,222,202,0,0,0,1>>
+nonode@nohost  IEEE 802.15.4: layer successfully launched 
+nonode@nohost: 6lowpan layer successfully launched
 ----------------------------------------------------------------------------------------
 Eshell V14.0.2 (press Ctrl+G to abort, type help(). for help)
 1> emerg: mmcsd_detach: FIXME
 robot:tx().
 robot:tx().
-New packet transmission 
+Transmission request
 Final destination: <<202,254,222,202,0,0,0,2>>
-Compressed packet size: 73 bytes
-No fragmentation needed
-Routing check...
+Searching next hop...
 Direct link found 
-Sending 73 bytes
-ok
+No fragmentation needed
+Packet successfully sent
 
 ----------------RECEIVER-------------------------
 
-nonode@nohost: Stack successfully launched
+Initialization
+Current node address: <<202,254,222,202,0,0,0,2>>
 nonode@nohost: Routing table server successfully launched
-Current node mac address: <<202,254,222,202,0,0,0,2>>
+nonode@nohost  IEEE 802.15.4: layer successfully launched 
+nonode@nohost: 6lowpan layer successfully launched
 ----------------------------------------------------------------------------------------
 Eshell V14.0.2 (press Ctrl+G to abort, type help(). for help)
 1> robot:rx().
 robot:rx().
-nonode@nohost waiting to receive data... 
+Reception mode
 New frame received
-<<122,17,12,202,254,222,202,0,0,0,1,202,254,222,202,0,0,0,2,72,101,108,108,111,
-  32,119,111,114,108,100,32,116,104,105,115,32,105,115,32,97,110,32,105,112,
-  118,54,32,112,97,99,107,101,116,32,102,111,114,32,116,101,115,116,105,110,
-  103,32,112,117,114,112,111,115,101>>
+Originator               : <<200,254,222,202,0,0,0,1>>
 Final destination address: <<202,254,222,202,0,0,0,2>>
 Current node address     : <<202,254,222,202,0,0,0,2>>
-Destination node reached, Forwarding to lowpan layer
+Final destination node reached, Forwarding to lowpan layer
 Datagram reassembled 

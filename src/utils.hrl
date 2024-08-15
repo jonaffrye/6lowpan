@@ -10,6 +10,7 @@
 -define(Node2Address, lowpan_core:generateLLAddr(?Node2MacAddress)).
 -define(Node3Address, lowpan_core:generateLLAddr(?Node3MacAddress)).
 -define(Node4Address, lowpan_core:generateLLAddr(?Node4MacAddress)).
+-define(Node5Address, lowpan_core:generateLLAddr(?Node5MacAddress)).
 
 -define(IPv6Header, #ipv6_header{
     version = 6,
@@ -31,6 +32,28 @@
     hop_limit = 64,
     source_address = ?Node1Address,
     destination_address = ?Node3Address
+}).
+
+-define(IPv6Header4, #ipv6_header{
+    version = 6,
+    traffic_class = 0,
+    flow_label = 0,
+    payload_length = ?PayloadLength,
+    next_header = 12,
+    hop_limit = 64,
+    source_address = ?Node1Address,
+    destination_address = ?Node4Address
+}).
+
+-define(IPv6Header5, #ipv6_header{
+    version = 6,
+    traffic_class = 0,
+    flow_label = 0,
+    payload_length = ?PayloadLength,
+    next_header = 12,
+    hop_limit = 64,
+    source_address = ?Node1Address,
+    destination_address = ?Node5Address
 }).
 
 -define(FrameControl, #frame_control{
