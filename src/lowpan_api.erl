@@ -220,7 +220,8 @@ frameReception() ->
             error_nalp
     after 15000 ->
         error_timeout
-    end.
+    end, 
+    io:format("-----------------------------------------------------~n").
 
 %% @doc Handles frame information reception.
 %% @spec frameInfoRx() -> term().
@@ -458,6 +459,9 @@ tx_packet_metrics(internal, {tx_packet_metrics}, Data) ->
 rx_frame(internal, {rx_frame}, Data) ->
     #{caller := From} = Data,
     {keep_state, Data#{caller => From}};
+
+rx_frame(cast, {frame_rx, _From}, Data) ->
+    {keep_state, Data};
 
 rx_frame(cast, {new_frame_rx, IsMeshedPckt, OriginatorAddr, Datagram}, Data) ->
     #{caller := From, node_mac_addr := CurrNodeMacAdd} = Data,
@@ -755,7 +759,7 @@ get_nodeData_value(Key) ->
 %% @spec ieee802154_setup(binary()) -> ok.
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        phy_layer = mock_phy_network,
+        %phy_layer = mock_phy_network,
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_api:inputCallback/4
     }),

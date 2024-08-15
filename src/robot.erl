@@ -466,7 +466,7 @@ start(_Type, _Args) ->
 
     lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
     
-    %rx(),
+    rx(),
     {ok, Supervisor}.
 
 % @private
