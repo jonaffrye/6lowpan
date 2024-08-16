@@ -206,7 +206,7 @@ frameReception() ->
         {reassembled_packet, IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket} ->
             io:format("Datagram reassembled, start packet decoding ~n"),
             _DecodedPacket = lowpan_core:decodeIpv6Pckt(IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket),
-            %grisp_led:color(2, blue),
+            grisp_led:color(2, blue),
             ReassembledPacket; 
         dtg_discarded -> 
             io:format("Datagram successfully discarded ~n"),
@@ -218,7 +218,7 @@ frameReception() ->
             reassembly_timeout;             
         {error_nalp}->
             error_nalp
-    after 15000 ->
+    after ?REASSEMBLY_TIMEOUT ->
         error_timeout
     end, 
     io:format("-----------------------------------------------------~n").
@@ -589,7 +589,7 @@ forward(internal, {start_forward}, Data) ->
         end,
     case NewDatagram of
         {discard, _} ->
-            {next_state, idle, Data};
+            {next_state, rx_frame, Data};
         _ ->
             DestMacAddress = lowpan_core:convertAddrToBin(FinalDstMacAdd),
             io:format("Searching next hop in the routing table...~n"),
@@ -597,9 +597,9 @@ forward(internal, {start_forward}, Data) ->
 
             case NextHopAddr of
                 DestMacAddress ->
-                    io:format("Direct link found~nForwarding to node: ~p", [NextHopAddr]);
+                    io:format("Direct link found~nForwarding to node: ~p~n", [NextHopAddr]);
                 _ ->
-                    io:format("Next hop found~nForwarding to node: ~p", [NextHopAddr])
+                    io:format("Next hop found~nForwarding to node: ~p~n", [NextHopAddr])
             end,
             NewMH = MH#mac_header{src_addr = CurrNodeMacAdd, dest_addr = NextHopAddr},
             io:format("------------------------------------------------------~n"),
@@ -700,7 +700,7 @@ update_datagram(MeshInfo, Datagram, Data) ->
 discard_datagram(_, Data = #{caller := From})->
     io:format("Hop left value: 0, discarding the datagram~n"),
     From ! dtg_discarded,
-    {next_state, idle, Data}.
+    {next_state, rx_frame, Data}.
 
 %% @doc Forwards a datagram to the next hop.
 %% @spec forward_datagram(binary(), term(), map(), map()) -> {next_state, atom(), map()}.
@@ -777,5 +777,5 @@ ieee802154_setup(MacAddr)->
     end, 
 
     ieee802154:rx_on(), 
-    io:format("~p IEEE 802.15.4: layer successfully launched ~n",[node()]).
+    io:format("~p: IEEE 802.15.4 layer successfully launched ~n",[node()]).
 

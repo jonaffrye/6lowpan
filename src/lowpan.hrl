@@ -71,7 +71,7 @@
 -define(MAX_FRAG_SIZE_NoMESH,75). % Since max frame size is 80 bytes, and lowpan header 30b bytes (5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
 -define(MAX_FRAG_SIZE_MESH,58).% Since max frame size is 80 bytes, and lowpan header 30b bytes (17 bytes for meshHeader, 5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
 -define(MAX_DTG_SIZE, 2047). % 11 bits datagram_size
--define(REASSEMBLY_TIMEOUT, 10000). % 60 sec
+-define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
 -define(DATAGRAMS_MAP,#{}). % map of received datagrams, the keys are the tag of datagrams
 -define(MAX_TAG_VALUE, 65535).
@@ -191,26 +191,42 @@
         lowpan_core:generateEUI64MacAddr(?Node3MacAddress)).
 -define(node4_addr,
         lowpan_core:generateEUI64MacAddr(?Node4MacAddress)).
+-define(node5_addr,
+        lowpan_core:generateEUI64MacAddr(?Node5MacAddress)).
 
 -define(Default_routing_table,
         #{?node1_addr => ?node1_addr,
           ?node2_addr => ?node2_addr,
-          ?node3_addr => ?node3_addr}).
+          ?node3_addr => ?node3_addr, 
+          ?node4_addr => ?node4_addr, 
+          ?node5_addr => ?node5_addr}).
 
--define(Node1_routing_table,
-        #{?node1_addr => ?node1_addr,
-          ?node2_addr => ?node3_addr,
-          ?node3_addr => ?node2_addr}).
+% -define(Node1_routing_table,
+%         #{?node1_addr => ?node1_addr,
+%           ?node2_addr => ?node3_addr,
+%           ?node3_addr => ?node2_addr}).
 
--define(Node2_routing_table,
-        #{?node1_addr => ?node1_addr,
-          ?node2_addr => ?node2_addr,
-          ?node3_addr => ?node3_addr}).
+-define(Node1_routing_table, % 5 node routing test: 1 -> 2 -> 5
+        #{?node5_addr => ?node2_addr, 
+          ?node2_addr => ?node2_addr, 
+          ?node3_addr => ?node3_addr, 
+          ?node4_addr => ?node4_addr}).
 
--define(Node3_routing_table,
-        #{?node1_addr => ?node2_addr,
-          ?node2_addr => ?node2_addr,
-          ?node3_addr => ?node3_addr}).
+-define(Node2_routing_table, % 5 node routing test: 2 -> 3 -> 5
+        #{?node5_addr => ?node3_addr}).
+
+-define(Node3_routing_table, % 5 node routing test: 3 -> 4 -> 5
+        #{?node5_addr => ?node4_addr}).
+
+-define(Node4_routing_table, % 5 node routing test: 4 -> 5
+        #{?node5_addr => ?node5_addr}).
+
+-define(Node5_routing_table, % 5 node routing test
+        #{?node5_addr => ?node5_addr}).
+
+
+
+
 
 %---------------------------------------------------- Metrics ----------------------------------------------------------------
 -record(metrics, 

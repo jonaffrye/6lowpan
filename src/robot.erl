@@ -12,7 +12,7 @@
     tx_unc_ipv6/0,
     tx_iphc_pckt/0,
     tx_frag_iphc_pckt/0,
-    tx_big_payload/0,
+    tx_big_payload/1,
     tx_with_udp/0,
     tx_msh_iphc_pckt/0,
     tx_msh_frag_iphc_pckt/0,
@@ -26,7 +26,10 @@
     tx_mesh_prefix/0, 
     %tx_with_metrics/1, 
     ieeetx2/0, 
-    ieeetx3/0
+    ieeetx3/0, 
+    tx_big_payload3/1, 
+    tx_big_payload4/1, 
+    tx_big_payload5/1
 ]).
 
 -export([start/2]).
@@ -178,27 +181,27 @@ tx_broadcast_pckt() ->
 %-------------------------------------------------------------------------------
 tx() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
-    lowpan_api:sendPacket(Ipv6Pckt).
+    lowpan_api:sendPacket(Ipv6Pckt, true).
 
 tx3() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header3, ?Payload),
-    lowpan_api:sendPacket(Ipv6Pckt).
+    lowpan_api:sendPacket(Ipv6Pckt, true).
 
 tx4() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header4, ?Payload),
-    lowpan_api:sendPacket(Ipv6Pckt).
+    lowpan_api:sendPacket(Ipv6Pckt, true).
 
 tx5() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header5, ?Payload),
-    lowpan_api:sendPacket(Ipv6Pckt).
+    lowpan_api:sendPacket(Ipv6Pckt, true).
 
 
 
 %-------------------------------------------------------------------------------
 % Big payload transmission
 %-------------------------------------------------------------------------------
-tx_big_payload() ->
-    Payload = lowpan_core:generateChunks(),
+tx_big_payload(N) ->
+    Payload = lowpan_core:generateChunks(N),
 
     Node1Address = lowpan_core:generateLLAddr(?Node1MacAddress),
     Node2Address = lowpan_core:generateLLAddr(?Node2MacAddress),
@@ -210,13 +213,76 @@ tx_big_payload() ->
             traffic_class = 0,
             flow_label = 0,
             payload_length = PayloadLength,
-            next_header = 58,
+            next_header = 12,
             hop_limit = 64,
             source_address = Node1Address,
             destination_address = Node2Address
         },
     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
-    lowpan_api:sendPacket(Ipv6Pckt).
+    lowpan_api:sendPacket(Ipv6Pckt, true).
+
+tx_big_payload3(N) ->
+    Payload = lowpan_core:generateChunks(N),
+
+    Node1Address = lowpan_core:generateLLAddr(?Node1MacAddress),
+    Node2Address = lowpan_core:generateLLAddr(?Node3MacAddress),
+    PayloadLength = byte_size(Payload),
+
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = PayloadLength,
+            next_header = 12,
+            hop_limit = 64,
+            source_address = Node1Address,
+            destination_address = Node2Address
+        },
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    lowpan_api:sendPacket(Ipv6Pckt, true).
+
+tx_big_payload4(N) ->
+    Payload = lowpan_core:generateChunks(N),
+
+    Node1Address = lowpan_core:generateLLAddr(?Node1MacAddress),
+    Node2Address = lowpan_core:generateLLAddr(?Node4MacAddress),
+    PayloadLength = byte_size(Payload),
+
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = PayloadLength,
+            next_header = 12,
+            hop_limit = 64,
+            source_address = Node1Address,
+            destination_address = Node2Address
+        },
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    lowpan_api:sendPacket(Ipv6Pckt, true).
+
+tx_big_payload5(N) ->
+    Payload = lowpan_core:generateChunks(N),
+
+    Node1Address = lowpan_core:generateLLAddr(?Node1MacAddress),
+    Node2Address = lowpan_core:generateLLAddr(?Node5MacAddress),
+    PayloadLength = byte_size(Payload),
+
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = PayloadLength,
+            next_header = 12,
+            hop_limit = 64,
+            source_address = Node1Address,
+            destination_address = Node2Address
+        },
+    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    lowpan_api:sendPacket(Ipv6Pckt, true).
 
 
 %-------------------------------------------------------------------------------
@@ -377,6 +443,7 @@ tx_mesh_prefix() ->
 rx() ->
     grisp_led:color(2, red),
     lowpan_api:frameReception(), 
+    grisp_led:color(2, green),
     rx().
 
 %-------------------------------------------------------------------------------
@@ -464,9 +531,9 @@ start(_Type, _Args) ->
 
     %ieee802154_setup(NodeMacAddr),
 
-    lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
+    lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Node1_routing_table}),
     
-    rx(),
+    %rx(),
     {ok, Supervisor}.
 
 % @private
