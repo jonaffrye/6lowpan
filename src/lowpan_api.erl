@@ -758,7 +758,7 @@ get_nodeData_value(Key) ->
 %% @spec ieee802154_setup(binary()) -> ok.
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        % phy_layer = mock_phy_network, % uncomment when testing
+        phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_api:inputCallback/4
     }),
