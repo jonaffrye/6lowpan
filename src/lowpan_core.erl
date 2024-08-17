@@ -13,8 +13,8 @@
     buildMeshHeader/1, getMeshInfo/1, containsMeshHeader/1,
     buildFirstFragHeader/1, getUncIpv6/1, getEUI64From48bitMac/1, generateLLAddr/1, 
     getEUI64MacAddr/1, createNewMeshHeader/3, createNewMeshDatagram/3, removeMeshHeader/2, 
-    convertAddrToBin/1,checkTagUnicity/2, get16bitMacAddr/1, generateMulticastAddr/1, getEUI64FromShortMac/1,
-    getDecodeIpv6PcktInfo/1, compressionRatio/2, getNextHop/2, generateEUI64MacAddr/1, getEUI64FromExtendedMac/1
+    convertAddrToBin/1,checkTagUnicity/2, get16bitMacAddr/1, generateMulticastAddr/1,
+    getDecodeIpv6PcktInfo/1, compressionRatio/2, getNextHop/2, generateEUI64MacAddr/1
 ]).
 
 %---------------------------------------------------------------------------------------
@@ -922,7 +922,7 @@ decodeIpv6Pckt(RouteExist, OriginatorMacAddr, CurrNodeMacAdd, CompressedPacket) 
 
             DecodedPckt;
 
-        _-> {error_decoding}
+        _-> error_decoding
     end.
 
 %---------------------------------------------------------------------------------------
@@ -1535,9 +1535,17 @@ getNextHop(CurrNodeMacAdd, DestMacAddress) ->
 
 -spec generateEUI64MacAddr(binary()) -> binary().
 generateEUI64MacAddr(MacAddress) when byte_size(MacAddress) == ?SHORT_ADDR_LEN ->
-    getEUI64FromShortMac(MacAddress);
+    PanID = <<16#FFFF:16>>,
+    Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
+    <<A:8, Rest:40>> = Extended48Bit, 
+    ULBSetup = A band 16#FD,
+    <<First:16, Last:24>> = <<Rest:40>>,
+    EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
+    EUI64;
 generateEUI64MacAddr(MacAddress) when byte_size(MacAddress) == ?EXTENDED_ADDR_LEN ->
-    getEUI64FromExtendedMac(MacAddress).
+    <<A:8, Rest:56>> = MacAddress,  
+    NewA = A bxor 2,   
+    <<NewA:8, Rest:56>>.
 
 -spec getEUI64From48bitMac(binary()) -> binary().
 getEUI64From48bitMac(MacAddress) ->
@@ -1547,21 +1555,6 @@ getEUI64From48bitMac(MacAddress) ->
     EUI64 = <<NewA:8, Rest:16, 16#fffe:16, Last:24>>,
     EUI64.
 
--spec getEUI64FromExtendedMac(binary()) -> binary().
-getEUI64FromExtendedMac(MacAddress) ->
-    <<A:8, Rest:56>> = MacAddress,  
-    NewA = A bxor 2,   
-    <<NewA:8, Rest:56>>.
-
--spec getEUI64FromShortMac(binary()) -> binary().
-getEUI64FromShortMac(MacAddress) ->
-    PanID = <<16#FFFF:16>>,
-    Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
-    <<A:8, Rest:40>> = Extended48Bit, 
-    ULBSetup = A band 16#FD,
-    <<First:16, Last:24>> = <<Rest:40>>,
-    EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
-    EUI64.
 
 -spec generateLLAddr(binary()) -> binary().
 generateLLAddr(MacAddress) ->

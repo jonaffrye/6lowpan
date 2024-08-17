@@ -11,9 +11,9 @@
     routing_req_receiver3/1, big_pyld_routing_sender/1, big_pyld_routing_receiver2/1, 
     big_pyld_routing_receiver3/1, discarded_sender/1, discarded_receiver/1, 
     no_hoplft_dst_reached_sender/1, no_hoplft_dst_reached_receiver/1, 
-    unexpected_dtg_size_sender/1, tag_verification_receiver/1,
-    same_tag_different_senders_sender/1, same_tag_different_senders_receiver/1,
-    timeout_sender/1, timeout_receiver/1, tag_verification_sender/1, duplicate_sender/1,
+    unexpected_dtg_size_sender/1,same_tag_different_senders_sender/1, 
+    same_tag_different_senders_receiver/1,
+    timeout_sender/1, timeout_receiver/1, duplicate_sender/1,
     duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1,
     nalp_sender/1, broadcast_sender/1, broadcast_receiver/1, extended_hopsleft_sender/1, extended_hopsleft_receiver2/1, 
     extended_hopsleft_receiver3/1, extended_hopsleft_receiver4/1, mesh_prefix_sender/1, mesh_prefix_receiver/1, benchmark_sender/1, 
@@ -28,25 +28,24 @@ all() ->
 groups() ->
     [
         {test_scenarios, [], [
-            % {group, simple_tx_rx},
-            % {group, big_payload_tx_rx},
-            % {group, multicast_src_tx},
-            % {group, unspecified_dst_tx},
-            % {group, routing_req_tx_rx},
-            % {group, discard_datagram_tx_rx},
-            % {group, no_hoplft_dst_reached_tx_rx},
-            % {group, unexpected_dtg_size_tx},
-            % {group, same_tag_different_senders}, 
-            % {group, timeout_scenario},
-            % %{group, tag_verification_tx_rx},  %TODO rx_info
-            % {group, duplicate_tx_rx},
-            % {group, multiple_hop_tx_rx},
-            % {group, nalp_tx_rx}, 
-            % {group, broadcast_tx_rx},
-            % {group, extendedHopsleftTx_rx}, 
-            % {group, big_pyld_routing_tx_rx},
-            % {group, simple_udp_tx_rx},
-            % {group, mesh_prefix_tx_rx},
+            {group, simple_tx_rx},
+            {group, big_payload_tx_rx},
+            {group, multicast_src_tx},
+            {group, unspecified_dst_tx},
+            {group, routing_req_tx_rx},
+            {group, discard_datagram_tx_rx},
+            {group, no_hoplft_dst_reached_tx_rx},
+            {group, unexpected_dtg_size_tx},
+            {group, same_tag_different_senders}, 
+            {group, timeout_scenario},
+            {group, duplicate_tx_rx},
+            {group, multiple_hop_tx_rx},
+            {group, nalp_tx_rx}, 
+            {group, broadcast_tx_rx},
+            {group, extendedHopsleftTx_rx}, 
+            {group, big_pyld_routing_tx_rx},
+            {group, simple_udp_tx_rx},
+            {group, mesh_prefix_tx_rx},
             {group, benchmark_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
@@ -61,7 +60,6 @@ groups() ->
         {unexpected_dtg_size_tx, [sequential], [unexpected_dtg_size_sender]},
         {same_tag_different_senders, [parallel, {repeat, 1}], [same_tag_different_senders_sender, same_tag_different_senders_receiver]},
         {timeout_scenario, [parallel, {repeat, 1}], [timeout_sender, timeout_receiver]}, 
-        {tag_verification_tx_rx, [parallel, {repeat, 1}], [tag_verification_sender, tag_verification_receiver]},
         {duplicate_tx_rx, [parallel, {repeat, 1}], [duplicate_sender, duplicate_receiver]}, 
         {multiple_hop_tx_rx, [parallel, {repeat, 1}], [multiple_hop_sender, multiple_hop_receiver2, multiple_hop_receiver3, multiple_hop_receiver4]},
         {nalp_tx_rx, [sequential], [nalp_sender]}, 
@@ -429,9 +427,6 @@ stop_node(undefined) ->
     ok.
 
 is_node_alive(Node) ->
-    %% You might need to implement a function that checks if the node is alive.
-    %% This can be a ping or any other check to see if the Node is reachable.
-    %% For example:
     case catch erpc:call(Node, some_module, ping, []) of
         pong -> true;
         _ -> false
@@ -453,7 +448,7 @@ end_per_suite(_Config) ->
 simple_pckt_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -484,7 +479,7 @@ simple_pckt_receiver(Config) ->
 simple_udp_pckt_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     Ipv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt, true]),
     ct:pal("Payload sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -514,7 +509,7 @@ simple_udp_pckt_receiver(Config) ->
 big_payload_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt2 = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt2]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt2, true]),
     ct:pal("Big payload sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -546,7 +541,7 @@ multicast_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    error_multicast_src = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    error_multicast_src = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Multicast Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -560,7 +555,7 @@ unspecified_dst_sender(Config) ->
     {Pid2, Node2} = ?config(node2, Config),
 
     IPv6Pckt = ?config(ipv6_packet, Config),
-    error_unspecified_addr = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    error_unspecified_addr = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Unspecified Source address done"),
     lowpan_node:stop_lowpan_node(Node1, Pid1),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
@@ -572,7 +567,7 @@ unspecified_dst_sender(Config) ->
 routing_req_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Routed packet sent successfully from node1 to node2"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -607,7 +602,7 @@ routing_req_receiver3(Config) ->
 big_pyld_routing_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Big routed packet sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -721,7 +716,7 @@ no_hoplft_dst_reached_receiver(Config) ->
 unexpected_dtg_size_sender(Config) ->
     {Pid1, Node1}  = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    error_frag_size = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    error_frag_size = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
 %-------------------------------------------------------------------------------
@@ -870,41 +865,6 @@ timeout_receiver(Config) ->
     ct:pal("Timeout occurred~n"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).
 
-
-%-------------------------------------------------------------------------------
-% Send multiple large payload from node 1 to node 2
-%-------------------------------------------------------------------------------
-tag_verification_sender(Config) ->
-    {Pid1, Node1} = ?config(node1, Config),
-    IPv6Pckt = ?config(ipv6_packet, Config),
-
-    % send 5 consecutive packet
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
-
-    ct:pal("Big payload sent successfully from node1 to node3"),
-    lowpan_node:stop_lowpan_node(Node1, Pid1).
-
-%-------------------------------------------------------------------------------
-% Reception of multiple big payload from node 1 by node 2
-%-------------------------------------------------------------------------------
-tag_verification_receiver(Config) ->
-    {Pid2, Node2}  = ?config(node2, Config),
-    ExpectedTag0 = 0, ExpectedTag1 = 1, ExpectedTag2 = 2, ExpectedTag3 = 3, ExpectedTag4 = 4,
-
-    ExpectedTag0 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
-    ExpectedTag1 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
-    ExpectedTag2 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
-    ExpectedTag3 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
-    ExpectedTag4 = erpc:call(Node2, lowpan_api, frameInfoRx, []),
-
-    ct:pal("Big payload received successfully at node2"),
-    lowpan_node:stop_lowpan_node(Node2, Pid2).
-
-
 %-------------------------------------------------------------------------------
 % Send duplicate fragment to node 2
 %-------------------------------------------------------------------------------
@@ -976,7 +936,7 @@ duplicate_receiver(Config) ->
 multiple_hop_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("multi hop packet sent successfully from node1 to node4"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1040,7 +1000,7 @@ nalp_sender(Config) ->
 broadcast_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Broadcast packet sent successfully"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 
@@ -1113,7 +1073,7 @@ extended_hopsleft_receiver4(Config) ->
 mesh_prefix_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt = ?config(ipv6_packet, Config),
-    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt]),
+    ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt, true]),
     ct:pal("Broadcast packet sent successfully"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).
 

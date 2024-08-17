@@ -127,11 +127,11 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
             receive 
                 {ok, NewMetrics} -> 
                     {ok, RTT, SuccessRate, CompressionRatio} = handle_ack(NewMetrics), 
-                    MetricsResult = {RTT, SuccessRate, CompressionRatio}, 
+                    _MetricsResult = {RTT, SuccessRate, CompressionRatio}, 
                     io:format("------------------------------Metrics report-----------------------------~n"),
                     io:format("RTT: ~p ms~nSuccessRate: ~p~nCompressionRatio: ~p~n", [RTT, SuccessRate, CompressionRatio]),
                     io:format("-------------------------------------------------------------------------~n"),
-                    MetricsResult; 
+                    ok; 
                 Response->
                         Response
             after 10000->
@@ -206,7 +206,6 @@ frameReception() ->
         {reassembled_packet, IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket} ->
             io:format("Datagram reassembled, start packet decoding ~n"),
             _DecodedPacket = lowpan_core:decodeIpv6Pckt(IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket),
-            grisp_led:color(2, blue),
             ReassembledPacket; 
         dtg_discarded -> 
             io:format("Datagram successfully discarded ~n"),
@@ -235,7 +234,6 @@ frameInfoRx() ->
     end.
     
 inputCallback(Frame, _, _, _) ->
-    %grisp_led:color(2, green),
     {FC, MH, Datagram} = Frame,
     {IsMeshedPckt, FinalDstMacAdd, MeshPckInfo} = case lowpan_core:containsMeshHeader(Datagram) of
             {true, MeshInfo} ->
@@ -759,7 +757,7 @@ get_nodeData_value(Key) ->
 %% @spec ieee802154_setup(binary()) -> ok.
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        %phy_layer = mock_phy_network,
+        phy_layer = mock_phy_network,
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_api:inputCallback/4
     }),
