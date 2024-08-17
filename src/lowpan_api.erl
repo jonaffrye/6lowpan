@@ -401,7 +401,8 @@ tx_packet_metrics(internal, {tx_packet_metrics}, Data) ->
     {RouteExist, MeshedHdrBin, MH} = lowpan_core:getNextHop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum+1, Extended_hopsleft),
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, RouteExist),
     CompressedPacket = <<CompressedHeader/binary, Payload/bitstring>>,
-    _CompressedPacketLen = byte_size(CompressedPacket),
+    CompressedPacketLen = byte_size(CompressedPacket),
+    io:format("Compressed packet len: ~p bytes~n",[CompressedPacketLen]),
     {FragReq, Fragments} = lowpan_core:triggerFragmentation(CompressedPacket, Tag, RouteExist),
     FC = #frame_control{ack_req = ?ENABLED, 
                         frame_type = ?FTYPE_DATA,
@@ -757,7 +758,7 @@ get_nodeData_value(Key) ->
 %% @spec ieee802154_setup(binary()) -> ok.
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
-        phy_layer = mock_phy_network,
+        % phy_layer = mock_phy_network, % uncomment when testing
         duty_cycle = duty_cycle_non_beacon,
         input_callback = fun lowpan_api:inputCallback/4
     }),

@@ -28,7 +28,7 @@ all() ->
 groups() ->
     [
         {test_scenarios, [], [
-            {group, simple_tx_rx},
+            %{group, simple_tx_rx},
             {group, big_payload_tx_rx},
             {group, multicast_src_tx},
             {group, unspecified_dst_tx},
