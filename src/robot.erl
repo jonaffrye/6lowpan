@@ -24,7 +24,6 @@
     tx_unc_ipv6_udp/0, 
     tx_comp_ipv6_udp/0, 
     tx_mesh_prefix/0, 
-    %tx_with_metrics/1, 
     ieeetx2/0, 
     ieeetx3/0, 
     tx_big_payload3/1, 
@@ -183,14 +182,17 @@ tx() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 3
 tx3() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header3, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 4
 tx4() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header4, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 5
 tx5() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header5, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
@@ -198,7 +200,7 @@ tx5() ->
 
 
 %-------------------------------------------------------------------------------
-% Big payload transmission
+% Big payload transmission, N = nbr of chunck in payload
 %-------------------------------------------------------------------------------
 tx_big_payload(N) ->
     Payload = lowpan_core:generateChunks(N),
@@ -221,6 +223,7 @@ tx_big_payload(N) ->
     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 3
 tx_big_payload3(N) ->
     Payload = lowpan_core:generateChunks(N),
 
@@ -242,6 +245,7 @@ tx_big_payload3(N) ->
     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 4
 tx_big_payload4(N) ->
     Payload = lowpan_core:generateChunks(N),
 
@@ -263,6 +267,7 @@ tx_big_payload4(N) ->
     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
+%% Tx to node 5
 tx_big_payload5(N) ->
     Payload = lowpan_core:generateChunks(N),
 
@@ -447,28 +452,8 @@ rx() ->
     rx().
 
 %-------------------------------------------------------------------------------
-% Transmission of N packets with report of performance and stats
+% Direct ieee data transmission to node 2
 %-------------------------------------------------------------------------------
-% tx_with_metrics(N)->
-%     Payload = lowpan_core:generateChunks(N),
-%     io:format("Payload ~p~n",[Payload]),
-%     PayloadLength = byte_size(Payload),
-
-%     IPv6Header =
-%         #ipv6_header{
-%             version = 6,
-%             traffic_class = 0,
-%             flow_label = 0,
-%             payload_length = PayloadLength,
-%             next_header = 58,
-%             hop_limit = 64,
-%             source_address = lowpan_core:generateLLAddr(?Node1MacAddress),
-%             destination_address = lowpan_core:generateLLAddr(?Node3MacAddress)
-%         },
-%     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
-%     lowpan_api:sendWithPerfReport(Ipv6Pckt).
-
-
 ieeetx2()->
     FrameControl = #frame_control{
     frame_type = ?FTYPE_DATA,
@@ -480,7 +465,9 @@ ieeetx2()->
 
     lowpan_api:tx(<<"Hello">>, FrameControl, MacHeader).
 
-
+%-------------------------------------------------------------------------------
+% Direct ieee data transmission to node 3
+%-------------------------------------------------------------------------------
 ieeetx3()->
     FrameControl = #frame_control{
     frame_type = ?FTYPE_DATA,
@@ -531,7 +518,7 @@ start(_Type, _Args) ->
 
     %ieee802154_setup(NodeMacAddr),
 
-    lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Node1_routing_table}),
+    lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
     
     %rx(),
     {ok, Supervisor}.

@@ -28,7 +28,7 @@ all() ->
 groups() ->
     [
         {test_scenarios, [], [
-            %{group, simple_tx_rx},
+            {group, simple_tx_rx},
             {group, big_payload_tx_rx},
             {group, multicast_src_tx},
             {group, unspecified_dst_tx},
@@ -509,6 +509,7 @@ simple_udp_pckt_receiver(Config) ->
 big_payload_sender(Config) ->
     {Pid1, Node1} = ?config(node1, Config),
     IPv6Pckt2 = ?config(ipv6_packet, Config),
+    io:format("Size ~p~n",[byte_size(IPv6Pckt2)]),
     ok = erpc:call(Node1, lowpan_api, sendPacket, [IPv6Pckt2, true]),
     ct:pal("Big payload sent successfully from node1 to node3"),
     lowpan_node:stop_lowpan_node(Node1, Pid1).

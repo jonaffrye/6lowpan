@@ -128,9 +128,9 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
                 {ok, NewMetrics} -> 
                     {ok, RTT, SuccessRate, CompressionRatio} = handle_ack(NewMetrics), 
                     _MetricsResult = {RTT, SuccessRate, CompressionRatio}, 
-                    io:format("------------------------------Metrics report-----------------------------~n"),
+                    io:format("-----------------Metrics report--------------------~n"),
                     io:format("RTT: ~p ms~nSuccessRate: ~p~nCompressionRatio: ~p~n", [RTT, SuccessRate, CompressionRatio]),
-                    io:format("-------------------------------------------------------------------------~n"),
+                    io:format("----------------------------------------------------~n"),
                     ok; 
                 Response->
                         Response
@@ -191,9 +191,6 @@ tx(Frame, FrameControl, MacHeader) ->
             receive 
                 Response -> 
                     Response
-            % after 1000 ->
-            %         io:format("Timeout~n"),
-            %         {error_timeout}
             end
     end.
 
@@ -287,7 +284,7 @@ handleDatagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH
             gen_statem:cast(?MODULE, {forward, Datagram, IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, CurrNodeMacAdd, FC, MH})
     end.
 
-%---------- States --------------------------------------------------------------------
+%---------- States ---------------------------------------------
 
 %% @doc Input callback function for handling incoming frames.
 %% @spec inputCallback(tuple(), term(), term(), term()) -> term().
@@ -313,7 +310,7 @@ idle(cast, {frame_rx, From}, Data) ->
     {next_state, rx_frame, Data#{caller => From}, [{next_event, internal, {rx_frame}}]}.
 
 
-%---------- Tx frame state -----------------------------------------------------------
+%---------- Tx frame state --------------------------------
 
 %% @doc Handles the transmission of a frame.
 %% @spec tx_frame(atom(), term(), map()) -> {next_state, atom(), map()}.
@@ -331,7 +328,7 @@ tx_frame(internal, {tx_frame}, Data) ->
             {next_state, idle, Data}
     end.
 
-%---------- Tx datagram state --------------------------------------------------------
+%---------- Tx datagram state ------------------------------
 
 %% @doc Handles the transmission of a datagram.
 %% @spec tx_datagram(atom(), term(), map()) -> {next_state, atom(), map()}.
@@ -347,7 +344,7 @@ tx_datagram(internal, {tx_datagram}, Data) ->
             {next_state, idle, Data}
     end.
 
-%---------- Tx packet state ----------------------------------------------------------
+%---------- Tx packet state -------------------------------
 
 %% @doc Handles the transmission of a packet.
 %% @spec tx_packet(atom(), term(), map()) -> {next_state, atom(), map()}.
@@ -451,7 +448,7 @@ tx_packet_metrics(internal, {tx_packet_metrics}, Data) ->
             {next_state, idle, Data}
     end.
 
-%---------- Rx frame state -----------------------------------------------------------
+%---------- Rx frame state ------------------------------------
 
 %% @doc Handles the reception of a frame.
 %% @spec rx_frame(atom(), term(), map()) -> {next_state, atom(), map()} | {keep_state, map()}.
@@ -496,10 +493,10 @@ rx_frame(cast, {forward, Datagram, IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, Cu
     {next_state, forward, NewData, [{next_event, internal, {start_forward}}]}.
 
 
-%---------- Rx new frame state -------------------------------------------------------
+%---------- Rx new frame state ------------------------------
 
 
-%---------- Collect state ------------------------------------------------------------
+%---------- Collect state -----------------------------------
 
 %% @doc Handles the collection of fragments.
 %% @spec collect(atom(), term(), map()) -> {next_state, atom(), map()} | {keep_state, map()}.
@@ -549,7 +546,7 @@ collect(cast, {complete, IsMeshedPckt, OriginatorAddr, Key, UpdatedDatagram}, Da
                     key => Key, updated_datagram => UpdatedDatagram},
     {next_state, reassemble, NewData, [{next_event, internal, {start_reassemble}}]}.
 
-%---------- Reassembly state ---------------------------------------------------------
+%---------- Reassembly state ------------------------------
 
 %% @doc Handles the reassembly of fragments.
 %% @spec reassemble(atom(), term(), map()) -> {next_state, atom(), map()}.
@@ -570,7 +567,7 @@ reassemble(internal, {start_reassemble}, Data) ->
     end,
     {next_state, idle, Data}.
 
-%---------- Forward state ------------------------------------------------------------
+%---------- Forward state ---------------------------------
 
 %% @doc Handles the forwarding of datagrams.
 %% @spec forward(atom(), term(), map()) -> {next_state, atom(), map()}.
@@ -605,7 +602,7 @@ forward(internal, {start_forward}, Data) ->
             forward_datagram(NewDatagram, FC, NewMH, Data)
     end.
     
-%---------- Utility functions --------------------------------------------------------
+%---------- Utility functions -----------------------------------
 
 %% @doc Sends a fragment of a packet.
 %% @spec sendFragment(boolean(), binary(), binary(), map(), term(), integer()) -> {ok, integer()} | {Error, integer()}.

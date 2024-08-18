@@ -40,16 +40,14 @@ all() ->
     ].
 
 init_per_testcase(Config) ->
-    % Any setup required before suite runs
     Config.
 
 end_per_testcase(_Config) ->
-    % Cleanup after suite runs
     ok.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           6LoWPAN Packet Encapsulation
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+%                       6LoWPAN Packet Encapsulation
+%-------------------------------------------------------------------------------
 
 pkt_encapsulation_test(_Config) ->
     Payload = <<"This is an Ipv6 pckt">>,
@@ -70,9 +68,6 @@ pkt_encapsulation_test(_Config) ->
     ToCheck = lowpan_core:pktEncapsulation(IPv6Header, Payload),
     ok.
 
-% TODO
-
-% Comp pckt encap with correct dispatch
 
 unc_ipv6(_Config) ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -156,9 +151,9 @@ broadcast_pckt(_Config) ->
     io:format("Expected: ~p~n~nReceived: ~p~n", [ExpectedHeader, BroadcastHeader]),
     ExpectedHeader = BroadcastHeader.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Ipv6 Packet Compression
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+%                         Ipv6 Packet Compression
+%-------------------------------------------------------------------------------
 
 %--- Basic IPHC test case
 
@@ -196,7 +191,6 @@ link_local_addr_pckt_comp(_Config) ->
 
     InlineData =
         <<0:8, ?Node1MacAddress/binary,
-            %lowpan_core:tuple_list_to_binary(ExpectedCarriedInlineList),
             ?Node2MacAddress/binary>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
@@ -249,7 +243,6 @@ multicast_addr_pckt_comp(_Config) ->
     
     InlineData =
         <<0:2, 0:2, 2:20, 0:8, ?Node1MacAddress/binary,
-            %list_to_binary(ExpectedCarriedInlineList),
             Dest/binary>>,
 
     ExpectedHeader =
@@ -291,9 +284,6 @@ global_context_pckt_comp1(_Config) ->
     M = 0,
     Dac = 1,
     Dam = 2#00,
-
-    %Last64SrcAddr = <<16#CAFEDECA00000001:64>>, 
-    %Last64DstAddr = <<16#CAFEDECA00000002:64>>,
 
     ExpectedCarriedInline =
         #{ 
@@ -474,7 +464,6 @@ compress_header_example1_test(_Config) ->
             "NextHeader" => 58,
             "TrafficClass" => 224
         },
-    %lowpan_core:map_to_binary(ExpectedCarriedInline),
     InlineData = <<0:2, 56:6, 58:8, 1:8>>,
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
@@ -516,9 +505,9 @@ compress_header_example2_test(_Config) ->
 
     ok.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                      6LoWPAN IPv6 Packet Fragmentation
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+%                      6LoWPAN IPv6 Packet Fragmentation
+%-------------------------------------------------------------------------------
 
 fragmentation_test(_Config) ->
     % fragmentation test based on the computation of the size of all fragment payloads
@@ -562,14 +551,13 @@ datagram_info_test(_Config) ->
     Data = Payload,
     ok.
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                           Ipv6 Packet Reassembly
-%------------------------------------------------------------------------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+%                          Ipv6 Packet Reassembly
+%-------------------------------------------------------------------------------
 
 reassemble_fragments_list_test(_Config) ->
     Data = <<"Hello World!">>,
     PayloadLen = byte_size(Data),
-    % Crée un datagram pour tester la fonction reassemble/1
     Datagram = #datagram{
         tag = 25,
         size = PayloadLen,
@@ -578,7 +566,6 @@ reassemble_fragments_list_test(_Config) ->
         timer = erlang:system_time(second)
     },
 
-    % Appel de la fonction reassemble/1
     Reassembled = lowpan_core:reassemble(Datagram),
     <<"Hello World!">> = Reassembled,
     ok.
@@ -658,10 +645,9 @@ reassemble_full_ipv6_pckt_test(_Config) ->
     ok.
 
 
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-%                                                              Additionnal tests
-%------------------------------------------------------------------------------------------------------------------------------------------------------
-
+%-------------------------------------------------------------------------------
+%                               Additionnal tests
+%-------------------------------------------------------------------------------
 extended_EUI64_from_48mac(_Config)->
     MacAddr = <<16#9865FD361453:48>>, 
     Expected = <<16#9A65FDFFFE361453:64>>,

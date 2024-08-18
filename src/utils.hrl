@@ -1,6 +1,8 @@
 -include("lowpan.hrl").
 
-%----------------------------------------------Common value for testing purpose---------------------------------------------
+%-------------------------------------------------------------------------------
+% Common value for testing purpose
+%-------------------------------------------------------------------------------
 
 -define(Payload, <<"Hello world this is an ipv6 packet for testing purpose">>).
 -define(BigPayload, lowpan_core:generateChunks()).
@@ -65,7 +67,9 @@
 -define(MacHeader, #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).
 
 
-% ---------------- multiple hop Routing tables-----------
+%-------------------------------------------------------------------------------
+% multiple hop Routing tables
+%-------------------------------------------------------------------------------
 
 -define(Node1_multiple_hop_routing_table,
         #{?node4_addr => ?node2_addr}).
@@ -80,4 +84,3 @@
          #{?node4_addr => ?node4_addr,
           ?node3_addr => ?node3_addr}).
 
-% ------------------------------------------------------
