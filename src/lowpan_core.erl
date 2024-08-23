@@ -8,14 +8,16 @@
     compressIpv6Header/2, buildDatagramPckt/2, buildFirstFragPckt/5,
     getPcktInfo/1, getIpv6Payload/1, triggerFragmentation/3,
     decodeIpv6Pckt/4, encodeInteger/1,
-    tupleToBin/1, buildFragHeader/1, getNextHop/6, printAsBinary/1,
-    hexToBinary/1, completeWithPadding/1, generateChunks/0, generateChunks/1,
+    tupleToBin/1, buildFragHeader/1, getNextHop/6,
+    generateChunks/0, generateChunks/1,
     buildMeshHeader/1, getMeshInfo/1, containsMeshHeader/1,
     buildFirstFragHeader/1, getUncIpv6/1, getEUI64From48bitMac/1, generateLLAddr/1, 
     getEUI64MacAddr/1, createNewMeshHeader/3, createNewMeshDatagram/3, removeMeshHeader/2, 
     convertAddrToBin/1,checkTagUnicity/2, get16bitMacAddr/1, generateMulticastAddr/1,
-    getDecodeIpv6PcktInfo/1, compressionRatio/2, getNextHop/2, generateEUI64MacAddr/1
+    getDecodeIpv6PcktInfo/1, getNextHop/2, generateEUI64MacAddr/1
 ]).
+-export([getEUI64FromShortMac/1]).
+-export([getEUI64FromExtendedMac/1]).
 
 %-------------------------------------------------------------------------------
 %% @doc return pre-built Ipv6 packet
@@ -97,7 +99,10 @@ compressIpv6Header(Ipv6Pckt, RouteExist) ->
     {DAM, CarrInlineMap, CarrInlineList} =
         encodeDam(CID, M, DAC, DestAddress, UpdateMap4, UpdatedList4, RouteExist),
 
+    %CH = {TF, NH, HLIM, CID, SAC, SAM, M, DAC, DAM, CarrInlineList},
+
     CarrInlineBin = list_to_binary(CarrInlineList),
+    % io:format("Actual carried values: ~p ~n",[CarrInlineMap]),
     case NextHeader of
         ?UDP_PN ->
             UdpPckt = getUdpData(Ipv6Pckt),
@@ -233,20 +238,20 @@ encodeCid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) ->
             Bin = <<SrcContextId:4, DstContextId:4>>,
             L = [Bin],
             UpdatedList = CarrInlineList ++ L,
-            {1, CarrInlineMap#{"SA_CID" => SrcContextId, "DA_CID" => DstContextId}, UpdatedList};
+            {1, CarrInlineMap, UpdatedList};
 
         {error, {ok, DstContextId}} ->
             Bin = <<0:4, DstContextId:4>>,
             L = [Bin],
             UpdatedList = CarrInlineList ++ L,
-            {1, CarrInlineMap#{"DA_CID" => DstContextId}, UpdatedList};
+            {1, CarrInlineMap, UpdatedList};
 
         {{ok, SrcContextId}, error} ->
             SrcContextId = someValue,
             Bin = <<SrcContextId:4, 0:4>>,
             L = [Bin],
             UpdatedList = CarrInlineList ++ L,
-            {1, CarrInlineMap#{"SA_CID" => SrcContextId}, UpdatedList};
+            {1, CarrInlineMap, UpdatedList};
 
         _-> {0, CarrInlineMap, CarrInlineList}
     end.
@@ -1574,6 +1579,27 @@ get16bitMacAddr(Address) ->
     <<_:112, MacAddr:16/bitstring>> = <<Address:128>>,
     MacAddr.
 
+
+%---------------------------------------------------------------------------------------
+% Generate a EUI64 address from the 16bit short mac address
+%---------------------------------------------------------------------------------------
+getEUI64FromShortMac(MacAddress)->
+    PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
+    Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
+    <<A:8, Rest:40>> = Extended48Bit, 
+    ULBSetup = A band 16#FD, % replace 7th bit of first byte (U/L) by 0
+    <<First:16, Last:24>> = <<Rest:40>>,
+    EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
+    EUI64.
+
+%---------------------------------------------------------------------------------------
+% Generate a EUI64 address from the 64bit extended mac address
+%---------------------------------------------------------------------------------------
+getEUI64FromExtendedMac(MacAddress)->
+    <<A:8, Rest:56>> = MacAddress,  
+    NewA = A bxor 2,   
+    <<NewA:8, Rest:56>>.
+
 -spec generateMulticastAddr(binary()) -> binary().
 generateMulticastAddr(DestAddress) ->
     <<_:112, DST_15:8, DST_16:8>> = DestAddress,
@@ -1586,64 +1612,12 @@ createBroadcastHeader(SeqNum) ->
    BC0_Header = <<?BC0_DHTYPE, SeqNum:8>>,
    BC0_Header.
 
-%-------------------------------------------------------------------------------
-%
-%                                    Metrics
-%
-%-------------------------------------------------------------------------------
-% compressionRatio(IPv6Header, Ipv6Pckt)->
-%     {CompressedHeader, _} = compressIpv6Header(Ipv6Pckt), 
-%     OriginalHeaderLen = byte_size(ipv6:build_ipv6_header(IPv6Header)), 
-%     CompressedLen = byte_size(CompressedHeader), 
-%     CompressedRatio = (CompressedLen/OriginalHeaderLen)*100, 
-%     io:format("CompressedRatio: ~p%~n",[CompressedRatio]),
-%     CompressedRatio.
-
--spec compressionRatio(integer(), integer()) -> float().
-compressionRatio(OrigPcktLen, CompressedPcktLen) ->
-    CompressedRatio = (CompressedPcktLen / OrigPcktLen), 
-    CompressedRatio.
 
 %-------------------------------------------------------------------------------
 %
 %                               Utils functions
 %
 %-------------------------------------------------------------------------------
-
--spec printAsBinary(binary()) -> binary().
-printAsBinary(Binary) ->
-    Bytes = binary_to_list(Binary),
-    lists:flatten([byteToBinary(B) ++ " " || B <- Bytes]).
-
--spec byteToBinary(integer()) -> binary().
-byteToBinary(B) ->
-    Integer = integer_to_list(B, 2),
-    padBinary(Integer).
-
--spec padBinary(binary()) -> binary().
-padBinary(Binary) ->
-    case length(Binary) of
-        8 ->
-            Binary;
-        _ ->
-            padBinary(["0" | Binary])
-    end.
-
--spec hexToBinary(list()) -> binary().
-hexToBinary(Hex) ->
-    Binary = list_to_binary(hexToBytes(Hex)),
-    Bytes = binary_to_list(Binary),
-    lists:flatten([byteToBinary(B) ++ " " || B <- Bytes]).
-
--spec hexToBytes(list()) -> list().
-hexToBytes(Hex) ->
-    lists:map(fun(X) -> list_to_integer([X], 16) end, Hex).
-
--spec completeWithPadding(binary()) -> binary().
-completeWithPadding(Packet) ->
-    HeaderLengthBits = bit_size(Packet),
-    PaddingBits = (8 - HeaderLengthBits rem 8) rem 8,
-    <<Packet/bitstring, 0:PaddingBits>>.
 
 -spec convert(binary()) -> list().
 convert(Binary) ->

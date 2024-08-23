@@ -14,6 +14,9 @@
     extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1, multicast_addr_validity/1, 
     broadcast_pckt/1
 ]).
+% -export([cooja_example3/1]).
+% -export([cooja_example2/1]).
+% -export([cooja_example1/1]).
 
 
 all() ->
@@ -37,6 +40,7 @@ all() ->
         msh_pckt, extended_EUI64_from_64mac,extended_EUI64_from_48mac,
         extended_EUI64_from_16mac, check_tag_unicity, link_local_from_16mac, 
         multicast_addr_validity, broadcast_pckt
+        %cooja_example1, cooja_example2, cooja_example3
     ].
 
 init_per_testcase(Config) ->
@@ -693,3 +697,136 @@ multicast_addr_validity(_Config) ->
     io:format("ExpectedAddr ~p~nGenAddr ~p~n", [ExpectedAddr, GenAddr]),
     GenAddr = ExpectedAddr.
     
+
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+%                                                   Contiki-ng cooja packet example tests
+%------------------------------------------------------------------------------------------------------------------------------------------------------
+cooja_example1(_Config)->
+    Payload = <<"Cooja example 1">>,
+    PayloadLength = byte_size(Payload),
+
+    Source_address = <<16#FE80:16, 0:48, 207:16, 7:16, 7:16, 7:16>>,
+    Destination_address = <<16#FF02:16, 0:48, 0:48,16#1a:16>>,
+
+    Ipv6Pckt =
+        <<6:4, 0:8, 0:20, PayloadLength:16, 58:8, 64:8, Source_address/binary, Destination_address/binary, Payload/binary>>,
+
+    Tf = 2#11,
+    Nh = 0,
+    Hlim = 2#10,
+    Cid = 0,
+    Sac = 0,
+    Sam = 2#11,
+    M = 1,
+    Dac = 0,
+    Dam = 2#11,
+    <<_:120,Last8:8>> = Destination_address,
+    ExpectedCarriedInline = #{"NextHeader" => 58, "DAM"=><<Last8:8>>},
+
+    InlineData = <<58:8, Last8:8>>,
+    UdpInline = <<1025:16, 177:8, 63628:16>>,
+
+    %io:format("Expected UdpInline ~p~n", [UdpInline]),
+    ExpectedHeader =
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
+
+    CH = {Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
+    io:format("CH: ~p~n",[CH]),
+    io:format("Expected carried values: ~p~n", [ExpectedCarriedInline]),
+    Pckt = <<Ipv6Pckt/binary>>,
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
+
+   
+
+    %io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
+    ExpectedHeader = CompressedHeader,
+
+    ExpectedCarriedInline = CarriedInlineData,
+    ok.
+
+cooja_example2(_Config)->
+    Payload = <<"Cooja example 2">>,
+    PayloadLength = byte_size(Payload),
+
+    Source_address = <<16#FE80:16, 0:48, 202:16, 2:16, 2:16, 2:16>>,
+    Destination_address = <<16#FE80:16, 0:48, 212:16, 7402:16, 2:16, 2:16>>,
+
+    UdpPckt = <<5683:16, 5683:16, 37:16, 16#8441:16>>,
+
+    Ipv6Pckt =
+        <<6:4, 0:8, 0:20, PayloadLength:16, 17:8, 64:8, Source_address/binary, Destination_address/binary, UdpPckt/binary, Payload/binary>>,
+
+    Tf = 2#11,
+    Nh = 1,
+    Hlim = 2#10,
+    Cid = 0,
+    Sac = 0,
+    Sam = 2#11,
+    M = 0,
+    Dac = 0,
+    Dam = 2#11,
+    C = 0,
+    P = 2#00,
+    ExpectedCarriedInline = #{},
+
+    %InlineData = <<?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
+    UdpInline = <<5683:16, 5683:8, 8441:16>>,
+
+    %io:format("Expected UdpInline ~p~n", [UdpInline]),
+    ExpectedHeader =
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, ?UDP_DHTYPE:5, C:1, P:2, UdpInline/binary>>,
+
+    CH = {Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, UdpInline},
+    io:format("Expected carried values: ~p~n", [ExpectedCarriedInline]),
+    Pckt = <<Ipv6Pckt/binary, UdpPckt/binary>>,
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
+
+    %io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
+    ExpectedHeader = CompressedHeader,
+
+    ExpectedCarriedInline = CarriedInlineData,
+    ok.
+
+cooja_example3(_Config)->
+    Payload = <<"Cooja example 3">>,
+    PayloadLength = byte_size(Payload),
+
+    Source_address = <<0:64, 207:16, 7:16, 7:16, 7:16>>,
+    Destination_address = <<0:64, 202:16, 2:16, 2:16, 2:16>>,
+
+
+    Ipv6Pckt =
+        <<6:4, 0:8, 0:20, PayloadLength:16, 43:8, 63:8, Source_address/binary, Destination_address/binary, Payload/binary>>,
+
+    Tf = 2#11,
+    Nh = 1,
+    Hlim = 2#00,
+    Cid = 1,
+    Sac = 1,
+    Sam = 2#01,
+    M = 0,
+    Dac = 1,
+    Dam = 2#11,
+
+    <<_:64, Last64S:64>> = Source_address, 
+
+    ExpectedCarriedInline = #{"HopLimit"=>63, "NH"=>43, "SAM" => <<Last64S:64>>},
+
+    InlineData = <<?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
+    UdpInline = <<1025:16, 177:8, 63628:16>>,
+
+    %io:format("Expected UdpInline ~p~n", [UdpInline]),
+    ExpectedHeader =
+        <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
+
+    CH = {Tf, Nh, Hlim, Cid, Sac, Sam, M, Dac, Dam, InlineData},
+    io:format("Expected carried values: ~p~n", [ExpectedCarriedInline]),
+    Pckt = <<Ipv6Pckt/binary>>,
+    
+    {CompressedHeader, CarriedInlineData} = lowpan_core:compressIpv6Header(Pckt, false),
+    
+    %io:format("Expected ~p~nReceived ~p~n", [ExpectedHeader, CompressedHeader]),
+    ExpectedHeader = CompressedHeader,
+
+    ExpectedCarriedInline = CarriedInlineData,
+    ok.

@@ -134,8 +134,8 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
                     ok; 
                 Response->
                         Response
-            after 10000->
-                        error
+            % after 10000->
+            %             error
             end
     end.
 
@@ -216,8 +216,8 @@ frameReception() ->
             error_nalp
     after ?REASSEMBLY_TIMEOUT ->
         error_timeout
-    end, 
-    io:format("-----------------------------------------------------~n").
+    end.
+    
 
 %% @doc Handles frame information reception.
 %% @spec frameInfoRx() -> term().
