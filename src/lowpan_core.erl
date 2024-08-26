@@ -107,6 +107,7 @@ compressIpv6Header(Ipv6Pckt, RouteExist) ->
         ?UDP_PN ->
             UdpPckt = getUdpData(Ipv6Pckt),
             CompressedUdpHeaderBin = compressUdpHeader(UdpPckt, []),
+            io:format("Lowpan core: UdpInline: ~p ~n",[CompressedUdpHeaderBin]),
             CompressedHeader =
                 <<?IPHC_DHTYPE:3, TF:2, NH:1, HLIM:2, CID:1, SAC:1, SAM:2, M:1, DAC:1, DAM:2, CarrInlineBin/binary, CompressedUdpHeaderBin/binary>>,
             {CompressedHeader, CarrInlineMap};

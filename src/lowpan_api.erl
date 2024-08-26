@@ -98,8 +98,8 @@ sendPacket(Ipv6Pckt) ->
             Extended_hopsleft = false,
             gen_statem:cast(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft, self()}),
             receive 
-            Response -> 
-                Response
+                Response -> 
+                    Response
             end
     end.
 
@@ -125,6 +125,8 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
                                 gen_statem:cast(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft, self()})
                         end,
             receive 
+                Response -> 
+                    Response;
                 {ok, NewMetrics} -> 
                     {ok, RTT, SuccessRate, CompressionRatio} = handle_ack(NewMetrics), 
                     _MetricsResult = {RTT, SuccessRate, CompressionRatio}, 
@@ -132,8 +134,8 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
                     io:format("RTT: ~p ms~nSuccessRate: ~p~nCompressionRatio: ~p~n", [RTT, SuccessRate, CompressionRatio]),
                     io:format("----------------------------------------------------~n"),
                     ok; 
-                Response->
-                        Response
+                error_frag_size ->
+                    error_frag_size
             % after 10000->
             %             error
             end
@@ -157,13 +159,12 @@ extendedHopsleftTx(Ipv6Pckt) ->
             error_unspecified_addr;
         _ ->
             Extended_hopsleft = true,
-            gen_statem:cast(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft, self()}),
+            Response = gen_statem:cast(?MODULE, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft, self()}),
             receive 
+                error_frag_size -> 
+                    error_frag_size;
                 Response -> 
                     Response
-            after 1000 ->
-                io:format("Timeout~n"),
-                error_timeout
             end
     end.
 
@@ -212,10 +213,10 @@ frameReception() ->
             ets:delete(DatagramMap, EntryKey),
             io:format("Entry deleted~n"),
             reassembly_timeout;             
-        {error_nalp}->
+        error_nalp->
             error_nalp
     after ?REASSEMBLY_TIMEOUT ->
-        error_timeout
+        reassembly_timeout
     end.
     
 
@@ -551,7 +552,7 @@ collect(cast, {complete, IsMeshedPckt, OriginatorAddr, Key, UpdatedDatagram}, Da
 %% @doc Handles the reassembly of fragments.
 %% @spec reassemble(atom(), term(), map()) -> {next_state, atom(), map()}.
 reassemble(internal, {start_reassemble}, Data) ->
-    io:format("Data: ~p~n", [Data]),
+    %io:format("Data: ~p~n", [Data]),
     #{datagram_map := DatagramMap, caller := From, additional_info:=Info,  node_mac_addr := CurrNodeMacAdd, 
        is_meshed_pckt := IsMeshedPckt, originator_addr := OriginatorAddr, 
        key := Key, updated_datagram := UpdatedDatagram} = Data,
@@ -704,7 +705,7 @@ forward_datagram(Frame, FrameControl, MacHeader, Data = #{caller := From}) ->
     case Frame of 
         <<?NALP_DHTYPE,_/bitstring>> ->
             io:format("The received frame is not a lowpan frame~n"), 
-            From ! {error_nalp};
+            From ! error_nalp;
         _->
             Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
             case Transmit of

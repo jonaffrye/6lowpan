@@ -14,9 +14,9 @@
     extended_EUI64_from_16mac/1, check_tag_unicity/1, link_local_from_16mac/1, multicast_addr_validity/1, 
     broadcast_pckt/1
 ]).
-% -export([cooja_example3/1]).
-% -export([cooja_example2/1]).
-% -export([cooja_example1/1]).
+-export([cooja_example3/1]).
+-export([cooja_example2/1]).
+-export([cooja_example1/1]).
 
 
 all() ->
@@ -726,7 +726,7 @@ cooja_example1(_Config)->
     InlineData = <<58:8, Last8:8>>,
     UdpInline = <<1025:16, 177:8, 63628:16>>,
 
-    %io:format("Expected UdpInline ~p~n", [UdpInline]),
+    io:format("Expected UdpInline ~p~n", [UdpInline]),
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
@@ -769,10 +769,10 @@ cooja_example2(_Config)->
     P = 2#00,
     ExpectedCarriedInline = #{},
 
-    %InlineData = <<?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
+    InlineData = <<?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
     UdpInline = <<5683:16, 5683:8, 8441:16>>,
 
-    %io:format("Expected UdpInline ~p~n", [UdpInline]),
+    io:format("Expected UdpInline ~p~n", [UdpInline]),
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, ?UDP_DHTYPE:5, C:1, P:2, UdpInline/binary>>,
 
@@ -813,9 +813,7 @@ cooja_example3(_Config)->
     ExpectedCarriedInline = #{"HopLimit"=>63, "NH"=>43, "SAM" => <<Last64S:64>>},
 
     InlineData = <<?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
-    UdpInline = <<1025:16, 177:8, 63628:16>>,
 
-    %io:format("Expected UdpInline ~p~n", [UdpInline]),
     ExpectedHeader =
         <<?IPHC_DHTYPE:3, Tf:2, Nh:1, Hlim:2, Cid:1, Sac:1, Sam:2, M:1, Dac:1, Dam:2, InlineData/binary>>,
 
