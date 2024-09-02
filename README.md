@@ -1,7 +1,7 @@
 # 6LoWPAN for UWB communication
 
-This project was developed during my master thesis with the goal of implementing the 6LoWPAN protocol for [Ultra-Wideband (UWB)](https://en.wikipedia.org/wiki/Ultra-wideband) communication on the [GRiSP 2](https://www.grisp.org/) embedded system, developed by [Stritzinger GmbH](https://www.stritzinger.com/).
-It is based on previous work by Gwendal Laurent available on this [git](https://github.com/GwendalLaurent/pmod_uwb) repository.
+This project was developed during my master’s thesis with the goal of implementing the 6LoWPAN protocol for [Ultra-Wideband (UWB)](https://en.wikipedia.org/wiki/Ultra-wideband) communication on the [GRiSP 2](https://www.grisp.org/) embedded system, developed by [Stritzinger GmbH](https://www.stritzinger.com/).
+This work builds on previous work by Gwendal Laurent available on this [GitHub](https://github.com/GwendalLaurent/pmod_uwb) repository.
 
 
 ## Overview
@@ -19,9 +19,9 @@ Key functions include:
 ## Code Architecture
 
 The code architecture is organized into four modules:
-1. `Lowpan API` for sending IPv6 packets and receiving MAC frames,
-2. `Lowpan core` which implements 6LoWPAN features including compression, fragmentation and meshing logic,
-3. `Lowpan IPv6` for creating IPv6 and UDP packets,
+1. `Lowpan API` for sending IPv6 packets and receiving MAC frames.
+2. `Lowpan core` which implements 6LoWPAN features including compression, fragmentation and meshing logic.
+3. `Lowpan IPv6` for creating IPv6 and UDP packets.
 4. `Routing Table` for managing routes between nodes.
 
 
@@ -33,7 +33,7 @@ The code architecture is organized into four modules:
 ## Software testing
 
 Software tests have been designed to validate the 6LoWPAN layer, including various exchange scenarios. 
-The setup for the simulation tests is shown in the image below. In order to transmit a message, a node calls on the 6LoWPAN layer, which in turn calls on the IEEE802.15.4 MAC layer. The logic is reversed for frame reception.
+The setup for the simulation tests is shown in the image below. In order to transmit a message, a node calls the 6LoWPAN layer, which in turn calls on the IEEE802.15.4 MAC layer. The logic is reversed for frame reception.
 
 <p align="center">
 <img src="imgs/simu setup.png" width=300>
@@ -47,7 +47,7 @@ rebar3 ct --sname test
 
 ## Hardware testing
 
-For real hardware transmission and reception using the GRiSP2 board, the Robot application defined in module `robot` includes several functions:
+For real hardware transmission and reception using the GRiSP2 board, the Robot application defined in the `robot` module includes several functions:
 
 **`tx()`**: To performs a simple transmission to node.
 
@@ -55,17 +55,17 @@ For real hardware transmission and reception using the GRiSP2 board, the Robot a
 
 **`rx()`**: To receive data.
 
-In order to deploy the robot application into the GRiSP 2 board, use the following command
+To deploy the robot application onto the GRiSP 2 board, use the following command:
 
 ```bash
 rebar3 as node1 grisp deploy
 ```
 
-The current implementation allows the code to be deployed on 5 GRiSP boards. To do this, change node1 to nodeX, where X is the nth card. The MAC address of each boards can be found in the config folder.
+The current implementation allows the code to be deployed on up to five GRiSP boards. To do this, change `node1` to `nodeX`, where X is the board number. The MAC address of each GRiSP boards can be found in the config folder.
 
-If you want to manually perform the transmissions, it can be done over serial communication, tutorial can be found [here](https://github.com/grisp/grisp/wiki/Connecting-over-Serial).
+If you want to manually perform the transmissions, it can be done over serial communication, a tutorial can be found [here](https://github.com/grisp/grisp/wiki/Connecting-over-Serial).
 
-In this case, after a successful connection, run the following command for simple transmission
+In this case, after a successful connection, run the following command for simple transmission:
 
 ```bash
 robot:tx()
@@ -74,7 +74,7 @@ robot:tx()
 
 ## Hardware tests setup 
 
-When sending data via GRiSP boards, a UWB sniffer can be used to capture the packets sent and analyse them in the Wireshark software. The sniffer configuration parameters are given below 
+When sending data via GRiSP boards, a UWB sniffer can be used to capture the packets sent and analyse them in the Wireshark software. The sniffer configuration parameters are given below:
 
 <p align="center">
 <img src="imgs/sniffer parameters.png" width=400>
