@@ -55,6 +55,22 @@ For real hardware transmission and reception using the GRiSP2 board, the Robot a
 
 **`rx()`**: To receive data.
 
+In order to deploy the robot application into the GRiSP 2 board, use the following command
+
+```bash
+rebar3 as node1 grisp deploy
+```
+
+The current implementation allows the code to be deployed on 5 GRiSP boards. To do this, change node1 to nodeX, where X is the nth card. The MAC address of each boards can be found in the config folder.
+
+If you want to manually perform the transmissions, it can be done over serial communication, tutorial can be found [here](https://github.com/grisp/grisp/wiki/Connecting-over-Serial).
+
+In this case, after a successful connection, run the following command for simple transmission
+
+```bash
+robot:tx()
+```
+
 
 ## Hardware tests setup 
 
