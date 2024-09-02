@@ -26,7 +26,7 @@ The code architecture is organized into four modules:
 
 
 <p align="center">
-<img src="code architecture.png" width=400>
+<img src="imgs/code architecture.png" width=400>
 </p>
 
 
@@ -36,7 +36,7 @@ Software tests have been designed to validate the 6LoWPAN layer, including vario
 The setup for the simulation tests is shown in the image below. In order to transmit a message, a node calls on the 6LoWPAN layer, which in turn calls on the IEEE802.15.4 MAC layer. The logic is reversed for frame reception.
 
 <p align="center">
-<img src="simu setup.png" width=300>
+<img src="imgs/simu setup.png" width=300>
 </p>
 
 To run these tests, use the following command:
@@ -77,23 +77,23 @@ robot:tx()
 When sending data via GRiSP boards, a UWB sniffer can be used to capture the packets sent and analyse them in the Wireshark software. The sniffer configuration parameters are given below 
 
 <p align="center">
-<img src="sniffer parameters.png" width=400>
+<img src="imgs/sniffer parameters.png" width=400>
 </p>
 
 Note that when analyzing packets in Wireshark, the 6LoWPAN section may not appear, 
 
 <p align="center">
-<img src="wireshark setup 1.png" width=400>
+<img src="imgs/wireshark setup 1.png" width=400>
 </p>
 
 the 6LoWPAN protocol in Wireshark should to be enable for this section to appear. To do so, you need to go to the Analyze tab, then Enabled protocols and type 6LoWPAN in the search bar, then enable it.
 
 <p align="center">
-<img src="wireshark setup 2.png" width=400>
+<img src="imgs/wireshark setup 2.png" width=400>
 </p>
 
 After these steps, the 6LoWPAN section should then appear, as shown in the next figure.
 
 <p align="center">
-<img src="wireshark setup 3.png" width=400>
+<img src="imgs/wireshark setup 3.png" width=400>
 </p>
