@@ -55,9 +55,9 @@
 
 -record(frag_header,
         {frag_type = ?FRAG1_DHTYPE :: frag_type(),
-         datagram_size, % 11 bits field to encode IP packet size bfr fragmentation
-         datagram_tag, % 16 bits to tag a specific
-         datagram_offset}). % 8-bits field for datagram offset
+         datagram_size, % 11 bits 
+         datagram_tag, % 16 bits 
+         datagram_offset}). % 8-bits 
 
 -record(frag_info,
         {datagram_size,
@@ -73,9 +73,9 @@
          fragments
          }).
 
--define(MAX_FRAME_SIZE,80). % since IEEE 802.15.4 leaves approximately 80-100 bytes of payload
--define(MAX_FRAG_SIZE_NoMESH,75). % Since max frame size is 80 bytes, and lowpan header 30b bytes (5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
--define(MAX_FRAG_SIZE_MESH,58).% Since max frame size is 80 bytes, and lowpan header 30b bytes (17 bytes for meshHeader, 5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
+-define(MAX_FRAME_SIZE,80). % Because IEEE 802.15.4 leaves approximately 80-100 bytes of payload
+-define(MAX_FRAG_SIZE_NoMESH,75). % Because max frame size is 80 bytes, and lowpan header 30 bytes (5 bytes for fragHeader) 8 bytes are from IPHC which is included in payload for frag
+-define(MAX_FRAG_SIZE_MESH,58). % Considering max frame size = 80 bytes, lowpan header = 30 bytes (17 bytes for meshHeader, 5 bytes for fragHeader, 8 bytes for IPHC)
 -define(MAX_DTG_SIZE, 2047). % 11 bits datagram_size
 -define(REASSEMBLY_TIMEOUT, 60000). % 60 sec
 -define(FRAG_HEADER_SIZE,5). % 5 bytes including frag_type, datagram_size, datagram_tag, and datagram_offset
@@ -97,19 +97,19 @@
 % Header Compression
 %-------------------------------------------------------------------------------
 -record(ipv6_header,
-        {version = 2#0110, % 4-bit Internet Protocol version number = 6
-         traffic_class, % 8-bit traffic class field
-         flow_label, % 20-bit flow label
-         payload_length, % 16-bit unsigned integer % 65535
-         next_header, % 8-bit selector
-         hop_limit, % 8-bit unsigned integer
-         source_address, % 128-bit address of the originator of the packet
-         destination_address}). % 128-bit address of the intended recipient of the
+        {version = 2#0110, % 4-bit
+         traffic_class, % 8-bit 
+         flow_label, % 20-bit 
+         payload_length, % 16-bit 
+         next_header, % 8-bit 
+         hop_limit, % 8-bit 
+         source_address, % 128-bit 
+         destination_address}). % 128-bit
 -record(udp_header,
-        {source_port, % 16-bit identifies the sender's port
-         destination_port,  % 16-bit identifies the receiver's port and is required
-         length,  % 16-bit indicates the length in bytes of the UDP header and UDP data
-         checksum}). % 16-bitfield may be used for error-checking of the header and data
+        {source_port, % 16-bit 
+         destination_port,  % 16-bit 
+         length,  % 16-bit 
+         checksum}). % 16-bit
 -record(iphc_header,
         {dispatch = ?IPHC_DHTYPE, % 3-bit dispatch value
          tf, % 2-bit field for Traffic Class and Flow Control compression options
@@ -130,7 +130,7 @@
 -type prefix_type() :: ?LINK_LOCAL_PREFIX | ?GLOBAL_PREFIX_1 | ?MULTICAST_PREFIX.
 
 
--define(UDP_PN, 17). %PN stands for Protocol Number
+-define(UDP_PN, 17). % PN stands for Protocol Number
 -define(TCP_PN, 6).
 -define(ICMP_PN, 58).
 
@@ -159,9 +159,9 @@
 
 -record(mesh_header,
         {mesh_type = ?MESH_DHTYPE,
-         v_bit, % 1-bit field
-         f_bit, % 1-bit field
-         hops_left, % 4-bit field
+         v_bit, % 1-bit 
+         f_bit, % 1-bit 
+         hops_left, % 4-bit 
          originator_address, % link-layer address of the Originator
          final_destination_address  % link-layer address of the Final Destination
          %deep_hops_left = undefined 

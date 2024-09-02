@@ -20,7 +20,7 @@
 -export([getEUI64FromExtendedMac/1]).
 
 %-------------------------------------------------------------------------------
-%% @doc return pre-built Ipv6 packet
+%% @doc Returns an Ipv6 packet
 %% @spec getIpv6Pkt(Header, Payload) -> binary().
 %-------------------------------------------------------------------------------
 -spec getIpv6Pkt(Header, Payload) -> binary() when
@@ -30,7 +30,7 @@ getIpv6Pkt(Header, Payload) ->
     ipv6:buildIpv6Packet(Header, Payload).
 
 %-------------------------------------------------------------------------------
-%% @doc create an uncompressed 6lowpan packet from an Ipv6 packet
+%% @doc create an uncompressed IPv6 packet 
 %% @spec pktEncapsulation(Header, Payload) -> binary().
 %-------------------------------------------------------------------------------
 -spec pktEncapsulation(Header, Payload) -> binary() when
@@ -42,6 +42,7 @@ pktEncapsulation(Header, Payload) ->
     <<DhTypebinary/binary, Ipv6Pckt/binary>>.
 
 %-------------------------------------------------------------------------------
+%% @doc Encapsulates an Uncompressed IPv6 packet
 %% @spec getUncIpv6(Ipv6Pckt) -> binary().
 %-------------------------------------------------------------------------------
 -spec getUncIpv6(Ipv6Pckt) -> binary() when
@@ -56,10 +57,10 @@ getUncIpv6(Ipv6Pckt) ->
 %-------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
-%% @doc compress an Ipv6 packet header according to the IPHC compression scheme
+%% @doc Compresses an Ipv6 packet header according to the IPHC compression scheme
 %% @spec compressIpv6Header(Ipv6Pckt, RouteExist) -> {binary(), map()}.
-%% @returns a tuple containing the compressed header, the payload and the values
-%% that should be carried inline
+%% @returns a tuple containing the compressed header in binary form 
+%% and the values that should be carried inline
 %-------------------------------------------------------------------------------
 -spec compressIpv6Header(Ipv6Pckt, RouteExist) -> {binary(), map()} when
       Ipv6Pckt :: binary(),
@@ -119,11 +120,11 @@ compressIpv6Header(Ipv6Pckt, RouteExist) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode the TrafficClass and Flow label fields
+%% @doc Encodes the TrafficClass and Flow label fields
 %% @spec encodeTf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()}.
 %% @returns a tuple containing the compressed values and the CarrInline values
 %-------------------------------------------------------------------------------
--spec encodeTf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()} when
+-spec encodeTf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) -> {term(), map(), list()} when
       TrafficClass :: integer(),
       FlowLabel :: integer(),
       CarrInlineMap :: map(),
@@ -163,9 +164,9 @@ encodeTf(TrafficClass, FlowLabel, CarrInlineMap, CarrInlineList) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode the NextHeader field
-%% @spec encodeNh(NextHeader, CarrInlineMap, CarrInlineList)->{integer(), map(), list()}.
+%% @doc Encodes the NextHeader field
 %% @doc NextHeader specifies whether or not the next header is encoded using NHC
+%% @spec encodeNh(NextHeader, CarrInlineMap, CarrInlineList)->{integer(), map(), list()}.
 %% @returns a tuple containing the compressed value and the CarrInline values
 %-------------------------------------------------------------------------------
 -spec encodeNh(NextHeader, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()} when
@@ -192,7 +193,7 @@ encodeNh(NextHeader, CarrInlineMap, CarrInlineList) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode the HopLimit field
+%% @doc Encodes the HopLimit field
 %% @spec encodeHlim(HopLimit, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()}.
 %% @returns a tuple containing the compressed value and the CarrInline values
 %-------------------------------------------------------------------------------
@@ -214,9 +215,9 @@ encodeHlim(HopLimit, CarrInlineMap, CarrInlineList) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode the Context Identifier Extension field
-%% @spec encodeCid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()}.
+%% @doc Encodes the Context Identifier Extension field
 %% @doc If this bit is 1, an 8 bit CIE field follows after the DAM field
+%% @spec encodeCid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()}.
 %% @returns a tuple containing the compressed value and the CarrInline values
 %-------------------------------------------------------------------------------
 -spec encodeCid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) -> {integer(), map(), list()} when
@@ -259,9 +260,9 @@ encodeCid(SrcAdd, DstAdd, CarrInlineMap, CarrInlineList) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode the Source Address Compression
-%% @spec encodeSac(SrcAdd) -> integer().
+%% @doc Encodes the Source Address Compression
 %% @doc SAC specifies whether the compression is stateless or statefull
+%% @spec encodeSac(SrcAdd) -> integer().
 %% @returns the compressed value
 %-------------------------------------------------------------------------------
 -spec encodeSac(SrcAdd) -> integer() when
@@ -280,10 +281,9 @@ encodeSac(SrcAdd) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode for the Source Address Mode
+%% @doc Encodes for the Source Address Mode
 %% @spec encodeSam(integer(), integer(), binary(), map(), list(), boolean()) -> {integer(), map(), list()}.
 %% @returns a tuple containing the compressed value and the CarrInline values
-%% @param CID, SAC, SrcAdd, CarrInlineMap, CarrInlineList
 %-------------------------------------------------------------------------------
 -spec encodeSam(integer(), integer(), binary(), map(), list(), boolean()) -> {integer(), map(), list()}.
 encodeSam(_CID, SAC, SrcAdd, CarrInlineMap, CarrInlineList, RouteExist) when SAC == 0 ->
@@ -358,7 +358,7 @@ encodeSam(_CID, SAC, SrcAdd, CarrInlineMap, CarrInlineList, _RouteExist) when SA
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode for the Multicast compression
+%% @doc Defines the multicast compression
 %% @spec encodeM(DstAdd) -> integer().
 %% @returns the compressed value
 %-------------------------------------------------------------------------------
@@ -396,7 +396,7 @@ encodeDac(DstAdd) ->
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @doc encode for the Destination Address Mode
+%% @doc Encodes logic for the Destination Address Mode
 %% @spec encodeDam(integer(), integer(), integer(), binary(), map(), 
 %% list(), boolean()) -> {integer(), map(), list()}.
 %% @param Cid, M, DAC, DstAdd, CarrInlineMap
@@ -611,8 +611,8 @@ encodeUdpChecksum(Checksum, CarriedInline) ->
 %-------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
+%% @doc Creates a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
 %% @spec createIphcPckt(IphcHeader, Payload) -> binary().
-%% @doc create a compressed 6lowpan packet (with iphc compression) from an Ipv6 packet
 %-------------------------------------------------------------------------------
 -spec createIphcPckt(IphcHeader, Payload) -> binary() when
       IphcHeader :: binary(),
@@ -621,8 +621,8 @@ createIphcPckt(IphcHeader, Payload) ->
     <<IphcHeader/binary, Payload/bitstring>>.
 
 %-------------------------------------------------------------------------------
+%% @doc Returns value field of a given Ipv6 packet
 %% @spec getPcktInfo(Ipv6Pckt) -> map().
-%% @doc return value field of a given Ipv6 packet
 %-------------------------------------------------------------------------------
 -spec getPcktInfo(Ipv6Pckt) -> map() when
       Ipv6Pckt :: binary().
@@ -651,6 +651,7 @@ getPcktInfo(Ipv6Pckt) ->
     PckInfo.
 
 %-------------------------------------------------------------------------------
+%% @doc Returns value field of a decoded Ipv6 packet
 %% @spec getDecodeIpv6PcktInfo(Ipv6Pckt) -> map().
 %-------------------------------------------------------------------------------
 -spec getDecodeIpv6PcktInfo(Ipv6Pckt) -> map() when
@@ -680,8 +681,8 @@ getDecodeIpv6PcktInfo(Ipv6Pckt) ->
     PckInfo.
 
 %-------------------------------------------------------------------------------
+%% @doc Returns UDP data from a given Ipv6 packet if it contains a UDP nextHeader
 %% @spec getUdpData(Ipv6Pckt) -> binary().
-%% @doc return UDP data from a given Ipv6 packet if it contains a UDP nextHeader
 %-------------------------------------------------------------------------------
 -spec getUdpData(Ipv6Pckt) -> binary() when
       Ipv6Pckt :: binary().
@@ -690,8 +691,8 @@ getUdpData(Ipv6Pckt) ->
     UdpPckt.
 
 %-------------------------------------------------------------------------------
+%% @doc Returns the payload of a given Ipv6 packet
 %% @spec getIpv6Payload(Ipv6Pckt) -> binary().
-%% @doc return the payload of a given Ipv6 packet
 %-------------------------------------------------------------------------------
 -spec getIpv6Payload(Ipv6Pckt) -> binary() when
       Ipv6Pckt :: binary().
@@ -700,8 +701,8 @@ getIpv6Payload(Ipv6Pckt) ->
     Payload.
 
 %-------------------------------------------------------------------------------
+%% @doc Encodes an Integer value in a binary format using an appropriate amount of bit
 %% @spec encodeInteger(I) -> binary().
-%% @doc Encode an Integer value in a binary format using an appropriate amount of bit
 %-------------------------------------------------------------------------------
 -spec encodeInteger(I) -> binary() when
       I :: integer().
@@ -721,8 +722,8 @@ encodeInteger(I) ->
 %-------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
+%% @doc Builds subsequent fragment header
 %% @spec buildFragHeader(FragHeader) -> binary().
-%% @doc returns a binary containing fragmentation header fields
 %-------------------------------------------------------------------------------
 -spec buildFragHeader(FragHeader) -> binary() when
       FragHeader :: map().
@@ -736,6 +737,7 @@ buildFragHeader(FragHeader) ->
     <<FragType:5, DatagramSize:11, DatagramTag:16, DatagramOffset:8>>.
 
 %-------------------------------------------------------------------------------
+%% @doc Builds first fragment header
 %% @spec buildFirstFragHeader(FragHeader) -> binary().
 %-------------------------------------------------------------------------------
 -spec buildFirstFragHeader(FragHeader) -> binary() when
@@ -756,8 +758,8 @@ buildFirstFragPckt(FragType, DatagramSize, DatagramTag, CompressedHeader, Payloa
     <<FragType:5, DatagramSize:11, DatagramTag:16, CompressedHeader/binary, Payload/bitstring>>.
 
 %-------------------------------------------------------------------------------
+%% @doc Creates a fragmented packet
 %% @spec buildDatagramPckt(DtgmHeader, Payload) -> binary().
-%% @doc create a datagram packet (fragments)
 %-------------------------------------------------------------------------------
 -spec buildDatagramPckt(map(), binary()) -> binary().
 buildDatagramPckt(DtgmHeader, Payload) ->
@@ -772,9 +774,9 @@ buildDatagramPckt(DtgmHeader, Payload) ->
     end.
 
 %-------------------------------------------------------------------------------
-%% @spec triggerFragmentation(binary(), integer()) -> {boolean(), list()} | {atom(), atom()}.
-%% @doc check if a packet needs to be fragmented or not and has a valid size 
+%% @doc Checks if a packet needs to be fragmented or not and has a valid size 
 %% returns a list of fragments if yes, the orginal packet if not
+%% @spec triggerFragmentation(binary(), integer()) -> {boolean(), list()} | {atom(), atom()}.
 %-------------------------------------------------------------------------------
 -spec triggerFragmentation(binary(), integer(), boolean()) -> {boolean(), list()} | {size_err, error_frag_size}.
 triggerFragmentation(CompPckt, DatagramTag, RouteExist) when byte_size(CompPckt) =< ?MAX_DTG_SIZE ->
@@ -795,8 +797,8 @@ triggerFragmentation(_CompPckt, _DatagramTag, _RouteExist) ->
     {size_err, error_frag_size}.
 
 %-------------------------------------------------------------------------------
+%% @doc Fragments a given Ipv6 packet
 %% @spec fragmentIpv6Packet(binary(), integer()) -> list().
-%% @doc Fragment a given Ipv6 packet
 %% @returns a list of fragmented packets having this form:
 %% [{FragHeader1, Fragment1}, ..., {FragHeaderN, FragmentN}]
 %-------------------------------------------------------------------------------
@@ -807,10 +809,10 @@ fragmentIpv6Packet(CompIpv6Pckt, DatagramTag, RouteExist) when is_binary(CompIpv
 
 %-------------------------------------------------------------------------------
 %% @private
-%% @spec fragProcess(binary(), integer(), integer(), integer(), list()) -> list().
 %% @doc helper function to process the received packet
 %% @returns a list of fragmented packets
 %% [{Header1, Fragment1}, ..., {HeaderN, FragmentN}]
+%% @spec fragProcess(binary(), integer(), integer(), integer(), list()) -> list().
 %% Input :
 %%   Ipv6Pckt := binary
 %%   Pckt size := integer
@@ -853,8 +855,8 @@ fragProcess(CompIpv6Pckt, DatagramTag, PacketLen, Offset, Acc, RouteExist) ->
     fragProcess(Rest, DatagramTag, PacketLen, Offset + 1, [{Header, FragPayload} | Acc], RouteExist).
 
 %-------------------------------------------------------------------------------
-%% @spec checkTagUnicity(map(), integer()) -> {integer(), map()}.
 %% @doc Check if tag exist in the map, if so generate a new one and update the tag map
+%% @spec checkTagUnicity(map(), integer()) -> {integer(), map()}.
 %-------------------------------------------------------------------------------
 -spec checkTagUnicity(map(), integer()) -> {integer(), map()}.
 checkTagUnicity(Map, Tag) ->
@@ -875,9 +877,9 @@ checkTagUnicity(Map, Tag) ->
 %-------------------------------------------------------------------------------
 
 %-------------------------------------------------------------------------------
+%% @doc decode an Ipv6 packet header commpressed according to the IPHC compression scheme
 %% @spec decodeIpv6Pckt(boolean(), binary(), binary(), binary()) -> binary() | {atom(), atom()}.
-%% @doc decompress an Ipv6 packet header commpressed according to the IPHC compression scheme
-%% @returns the decompressed Ipv6 packet
+%% @returns the decoded Ipv6 packet
 %-------------------------------------------------------------------------------
 -spec decodeIpv6Pckt(boolean(), binary(), binary(), binary()) -> binary() | {atom(), atom()}.
 decodeIpv6Pckt(RouteExist, OriginatorMacAddr, CurrNodeMacAdd, CompressedPacket) ->
@@ -934,8 +936,8 @@ decodeIpv6Pckt(RouteExist, OriginatorMacAddr, CurrNodeMacAdd, CompressedPacket) 
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc Decode logic for the CID field
 %% @spec decodeCid(integer(), binary()) -> {integer(), integer(), binary()}.
-%% @doc decode process for the CID field
 %% @returns the decoded ContextID
 %-------------------------------------------------------------------------------
 -spec decodeCid(integer(), binary()) -> {integer(), integer(), binary()}.
@@ -948,8 +950,8 @@ decodeCid(CID, CarriedInline) when CID == 0 ->
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc decode logic for the TF field
 %% @spec decodeTf(integer(), binary()) -> {{integer(), integer()}, integer(), binary()}.
-%% @doc decode process for the TF field
 %% @returns the decoded TrafficClass and FlowLabel value
 %-------------------------------------------------------------------------------
 -spec decodeTf(integer(), binary()) -> {{integer(), integer()}, integer(), binary()}.
@@ -973,8 +975,8 @@ decodeTf(TF, CarriedInline) ->
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc Decode logic for the NH field
 %% @spec decodeNextHeader(integer(), binary()) -> {integer(), binary()}.
-%% @doc decode process for the NH field
 %% @returns the decoded NextHeader value
 %-------------------------------------------------------------------------------
 -spec decodeNextHeader(integer(), binary()) -> {integer(), binary()}.
@@ -986,8 +988,8 @@ decodeNextHeader(NH, CarriedInline) when NH == 1 ->
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc Decode logic for the HLim field
 %% @spec decodeHlim(integer(), binary()) -> {integer(), binary()}.
-%% @doc decode process for the HLim field
 %% @returns the decoded Hop Limit value
 %-------------------------------------------------------------------------------
 -spec decodeHlim(integer(), binary()) -> {integer(), binary()}.
@@ -1006,8 +1008,8 @@ decodeHlim(HLim, CarriedInline) ->
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc decode logic for the SAC field
 %% @spec decodeSam(integer(), integer(), binary(), binary(), integer(), boolean()) -> {binary(), binary()}.
-%% @doc decode process for the SAC field
 %% @returns the decoded Source Address Mode value
 %-------------------------------------------------------------------------------
 -spec decodeSam(integer(), integer(), binary(), binary(), integer(), boolean()) -> {binary(), binary()}.
@@ -1057,8 +1059,8 @@ decodeSam(SAC, SAM, CarriedInline, MacIID, Context, _RouteExist) when SAC == 1 -
 
 %-------------------------------------------------------------------------------
 %% @private
+%% @doc Decode logic for the DAC field
 %% @spec decodeDam(integer(), integer(), integer(), binary(), binary(), integer(), boolean()) -> {binary(), binary()}.
-%% @doc decode process for the DAC field
 %% @returns the decoded Destination Address Mode value
 %-------------------------------------------------------------------------------
 -spec decodeDam(integer(), integer(), integer(), binary(), binary(), integer(), boolean()) -> {binary(), binary()}.
@@ -1206,7 +1208,7 @@ elementToBinary(Elem) when is_list(Elem) ->
 %-------------------------------------------------------------------------------
 %% @spec datagramInfo(binary()) -> map().
 %% @doc helper function to retrieve datagram info
-%% @returns a tuple containing useful datagram fields
+%% @returns a tuple containing useful fragment info
 %-------------------------------------------------------------------------------
 -spec datagramInfo(binary()) -> map().
 datagramInfo(Fragment) ->
@@ -1239,8 +1241,8 @@ datagramInfo(Fragment) ->
 
 
 %-------------------------------------------------------------------------------
+%% @doc Stores fragment in ETS and check if the datagram is complete
 %% @spec storeFragment(atom(), term(), integer(), binary(), integer(), integer(), integer(), term()) -> {term(), map()}.
-%% @doc Store the fragment in ETS and check if the datagram is complete
 %-------------------------------------------------------------------------------
 -spec storeFragment(map(), term(), integer(), binary(), integer(), integer(), integer(), term()) -> {term(), map()}.
 storeFragment(DatagramMap, Key, Offset, Payload, CurrTime, Size, Tag, _From) ->
@@ -1355,8 +1357,8 @@ reassemble(Datagram) ->
 %
 
 %-------------------------------------------------------------------------------
-%% @spec buildMeshHeader(map()) -> binary().
 %% @doc Creates mesh header binary
+%% @spec buildMeshHeader(map()) -> binary().
 %-------------------------------------------------------------------------------
 -spec buildMeshHeader(map()) -> binary().
 buildMeshHeader(MeshHeader) ->
@@ -1399,8 +1401,8 @@ createNewMeshDatagram(Datagram, SenderMacAdd, DstMacAdd) ->
     <<BinMeshHeader/binary, Datagram/bitstring>>.
 
 %-------------------------------------------------------------------------------
-%% @spec createNewMeshHeader(binary(), binary(), boolean()) -> binary().
 %% @doc Creates new mesh header
+%% @spec createNewMeshHeader(binary(), binary(), boolean()) -> binary().
 %-------------------------------------------------------------------------------
 createNewMeshHeader(SenderMacAdd, DstMacAdd, Extended_hopsleft) ->
     VBit =
@@ -1424,8 +1426,8 @@ createNewMeshHeader(SenderMacAdd, DstMacAdd, Extended_hopsleft) ->
     end.
 
 %-------------------------------------------------------------------------------
-%% @spec getMeshInfo(binary()) -> map().
 %% @doc Returns routing info in mesh header
+%% @spec getMeshInfo(binary()) -> map().
 %-------------------------------------------------------------------------------
 -spec getMeshInfo(binary()) -> map().
 getMeshInfo(Datagram) ->
@@ -1453,8 +1455,8 @@ getMeshInfo(Datagram) ->
     MeshInfo.
 
 %-------------------------------------------------------------------------------
+%% @doc Checks if datagram in mesh type, if so return true and mesh header info
 %% @spec containsMeshHeader(binary()) -> {boolean(), map()} | boolean().
-%% @doc Check if datagram in mesh type, if so return true and mesh header info
 %-------------------------------------------------------------------------------
 -spec containsMeshHeader(binary()) -> {boolean(), map()} | boolean().
 containsMeshHeader(Datagram) ->
@@ -1466,8 +1468,8 @@ containsMeshHeader(Datagram) ->
     end.
 
 %-------------------------------------------------------------------------------
+%% @doc Removes mesh header if the datagram was meshed (used in put and reasssemble)
 %% @spec removeMeshHeader(binary(), integer()) -> binary().
-%% @doc Remove mesh header if the datagram was meshed (used in put and reasssemble)
 %-------------------------------------------------------------------------------
 -spec removeMeshHeader(binary(), integer()) -> binary().
 removeMeshHeader(Datagram, HopsLeft) ->
@@ -1486,10 +1488,10 @@ removeMeshHeader(Datagram, HopsLeft) ->
     end.
 
 %-------------------------------------------------------------------------------
-%% @spec getNextHop(binary(), binary(), binary(), binary(), integer(), 
-% boolean()) -> {boolean(), binary(), map()} | {boolean(), binary(), map(), map()}.
 %% @doc Checks the next hop in the routing table and create new datagram with mesh
 %% header if meshing is needed
+%% @spec getNextHop(binary(), binary(), binary(), binary(), integer(), 
+% boolean()) -> {boolean(), binary(), map()} | {boolean(), binary(), map(), map()}.
 %% returns a tuple {nexthop:boolean, binary, datagram, macHeader}
 %-------------------------------------------------------------------------------
 -spec getNextHop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum, HopsleftExtended) -> 
@@ -1581,9 +1583,9 @@ get16bitMacAddr(Address) ->
     MacAddr.
 
 
-%---------------------------------------------------------------------------------------
-% Generate a EUI64 address from the 16bit short mac address
-%---------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% Generates a EUI64 address from the 16bit short mac address
+%-------------------------------------------------------------------------------
 getEUI64FromShortMac(MacAddress)->
     PanID = <<16#FFFF:16>>,%ieee802154:get_pib_attribute(mac_pan_id),
     Extended48Bit = <<PanID/binary, 0:16, MacAddress/binary>>, 
@@ -1593,9 +1595,9 @@ getEUI64FromShortMac(MacAddress)->
     EUI64 = <<ULBSetup:8, First:16, 16#FF:8, 16#FE:8, Last:24>>, 
     EUI64.
 
-%---------------------------------------------------------------------------------------
-% Generate a EUI64 address from the 64bit extended mac address
-%---------------------------------------------------------------------------------------
+%-------------------------------------------------------------------------------
+% Generates a EUI64 address from the 64bit extended mac address
+%-------------------------------------------------------------------------------
 getEUI64FromExtendedMac(MacAddress)->
     <<A:8, Rest:56>> = MacAddress,  
     NewA = A bxor 2,   

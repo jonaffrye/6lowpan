@@ -16,8 +16,8 @@
     timeout_sender/1, timeout_receiver/1, duplicate_sender/1,
     duplicate_receiver/1, multiple_hop_sender/1, multiple_hop_receiver2/1, multiple_hop_receiver3/1, multiple_hop_receiver4/1,
     nalp_sender/1, broadcast_sender/1, broadcast_receiver/1, extended_hopsleft_sender/1, extended_hopsleft_receiver2/1, 
-    extended_hopsleft_receiver3/1, extended_hopsleft_receiver4/1, mesh_prefix_sender/1, mesh_prefix_receiver/1, benchmark_sender/1, 
-    simple_udp_pckt_sender/1, simple_udp_pckt_receiver/1, benchmark_receiver/1
+    extended_hopsleft_receiver3/1, extended_hopsleft_receiver4/1, mesh_prefix_sender/1, mesh_prefix_receiver/1,  
+    simple_udp_pckt_sender/1, simple_udp_pckt_receiver/1
 ]).
 
 all() ->
@@ -45,8 +45,7 @@ groups() ->
             {group, extendedHopsleftTx_rx}, 
             {group, big_pyld_routing_tx_rx},
             {group, simple_udp_tx_rx},
-            {group, mesh_prefix_tx_rx},
-            {group, benchmark_tx_rx}
+            {group, mesh_prefix_tx_rx}
         ]},
         {simple_tx_rx, [parallel, {repeat, 1}], [simple_pckt_sender, simple_pckt_receiver]},
         {simple_udp_tx_rx, [parallel, {repeat, 1}], [simple_udp_pckt_sender, simple_udp_pckt_receiver]},
@@ -65,8 +64,7 @@ groups() ->
         {nalp_tx_rx, [sequential], [nalp_sender]}, 
         {broadcast_tx_rx, [parallel, {repeat, 1}], [broadcast_sender, broadcast_receiver]}, 
         {extendedHopsleftTx_rx, [parallel, {repeat, 1}], [extended_hopsleft_sender, extended_hopsleft_receiver2, extended_hopsleft_receiver3, extended_hopsleft_receiver4]}, 
-        {mesh_prefix_tx_rx, [parallel, {repeat, 1}], [mesh_prefix_sender, mesh_prefix_receiver]}, 
-        {benchmark_tx_rx, [parallel, {repeat, 1}], [benchmark_sender, benchmark_receiver]}
+        {mesh_prefix_tx_rx, [parallel, {repeat, 1}], [mesh_prefix_sender, mesh_prefix_receiver]}
     ].
 
 %--------------------------
@@ -1097,68 +1095,4 @@ mesh_prefix_receiver(Config) ->
 
     ct:pal("Routed packet received successfully at node4"),
 
-    lowpan_node:stop_lowpan_node(Node2, Pid2).
-
-%-------------------------------------------------------------------------------
-% Benchmark test sender
-%-------------------------------------------------------------------------------
-benchmark_sender(Config) ->
-    {Pid1, Node1} = ?config(node1, Config),
-    
-    N = 2,
-    Payload = lowpan_core:generateChunks(N),
-    PayloadLength = byte_size(Payload),
-
-    IPv6Header =
-        #ipv6_header{
-            version = 6,
-            traffic_class = 0,
-            flow_label = 0,
-            payload_length = PayloadLength,
-            next_header = 58,
-            hop_limit = 64,
-            source_address = lowpan_core:generateLLAddr(?Node1MacAddress),
-            destination_address = lowpan_core:generateLLAddr(?Node2MacAddress)
-        },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
-
-    erpc:call(Node1, lowpan_api, sendPacket, [Ipv6Pckt, false]),
- 
-    ct:pal("Payload sent successfully from node1 to node2"),
-    lowpan_node:stop_lowpan_node(Node1, Pid1).
-
-%-------------------------------------------------------------------------------
-% Benchmark test receiver
-%-------------------------------------------------------------------------------
-benchmark_receiver(Config) ->
-    {Pid2, Node2} = ?config(node2, Config),
-
-    N = 2,
-    Payload = lowpan_core:generateChunks(N),
-    PayloadLength = byte_size(Payload),
-
-    IPv6Header =
-        #ipv6_header{
-            version = 6,
-            traffic_class = 0,
-            flow_label = 0,
-            payload_length = PayloadLength,
-            next_header = 58,
-            hop_limit = 64,
-            source_address = lowpan_core:generateLLAddr(?Node1MacAddress),
-            destination_address = lowpan_core:generateLLAddr(?Node2MacAddress)
-        },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
-
-    {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
-    PcktInfo = lowpan_core:getPcktInfo(Ipv6Pckt),
-    Payload = PcktInfo#ipv6PckInfo.payload,
-    CompressedIpv6Packet = <<CompressedHeader/binary, Payload/bitstring>>,
-
-    ReceivedData = erpc:call(Node2, lowpan_api, frameReception, []),
-
-    %%io:format("Expected: ~p~n~nReceived: ~p~n", [CompressedIpv6Packet, ReceivedData]),
-    ReceivedData = CompressedIpv6Packet,
-
-    ct:pal("Payload received successfully at node2"),
     lowpan_node:stop_lowpan_node(Node2, Pid2).

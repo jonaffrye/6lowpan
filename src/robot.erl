@@ -41,7 +41,7 @@
 -define(RX_ANTD, 16450).
 
 %-------------------------------------------------------------------------------
-% Uncompressed ipv6 packet format verification
+% Sends uncompressed ipv6 packet format
 %-------------------------------------------------------------------------------
 tx_unc_ipv6() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -52,7 +52,7 @@ tx_unc_ipv6() ->
 
 
 %-------------------------------------------------------------------------------
-% compressed header packet format verificationCo
+% Sends compressed header packet format 
 %-------------------------------------------------------------------------------
 tx_iphc_pckt() ->
     InlineData = <<12:8, ?Node1MacAddress/binary, ?Node2MacAddress/binary>>,
@@ -67,7 +67,7 @@ tx_iphc_pckt() ->
     lowpan_api:tx(IPHC, ?FrameControl, ?MacHeader).
 
 %-------------------------------------------------------------------------------
-% Meshed and compressed header packet format verification
+% Sends meshed and compressed header packet format
 %-------------------------------------------------------------------------------
 tx_msh_iphc_pckt() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -89,7 +89,7 @@ tx_msh_iphc_pckt() ->
     lowpan_api:tx(Datagram, ?FrameControl, ?MacHeader).
 
 %-------------------------------------------------------------------------------
-% Fragmented and compressed packet format verification
+% Sends fragmented and compressed packet format
 %-------------------------------------------------------------------------------
 tx_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -112,7 +112,7 @@ tx_frag_iphc_pckt() ->
     lowpan_api:tx(Datagram, ?FrameControl, ?MacHeader).
 
 %-------------------------------------------------------------------------------
-% Meshed, fragmented and compressed packet format verification
+% Sends meshed, fragmented and compressed packet format
 %-------------------------------------------------------------------------------
 tx_msh_frag_iphc_pckt() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -145,7 +145,7 @@ tx_msh_frag_iphc_pckt() ->
     lowpan_api:tx(Datagram, ?FrameControl, ?MacHeader).
 
 %-------------------------------------------------------------------------------
-% Broadcast packet format verification
+% Sends broadcast packet format
 %-------------------------------------------------------------------------------
 tx_broadcast_pckt() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
@@ -176,23 +176,29 @@ tx_broadcast_pckt() ->
 
 
 %-------------------------------------------------------------------------------
-% Simple transmission 
+% Simple transmission to node 2
 %-------------------------------------------------------------------------------
 tx() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
-%% Tx to node 3
+%-------------------------------------------------------------------------------
+% Simple transmission to node 3
+%-------------------------------------------------------------------------------
 tx3() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header3, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
-%% Tx to node 4
+%-------------------------------------------------------------------------------
+% Simple transmission to node 4
+%-------------------------------------------------------------------------------
 tx4() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header4, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
-%% Tx to node 5
+%-------------------------------------------------------------------------------
+% Simple transmission to node 5
+%-------------------------------------------------------------------------------
 tx5() ->
     Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header5, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).

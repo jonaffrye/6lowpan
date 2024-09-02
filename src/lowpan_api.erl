@@ -7,7 +7,7 @@
 -export([init/1, start_link/1, start/1, stop_link/0, stop/0]).
 -export([callback_mode/0]).
 -export([sendPacket/1, sendPacket/2, sendUncDatagram/3, tx/3, extendedHopsleftTx/1]).
--export([frameReception/0, frameInfoRx/0]).
+-export([frameReception/0]).
 -export([inputCallback/4]).
 -export([idle/3]).
 -export([tx_frame/3]).
@@ -78,9 +78,10 @@ stop() ->
     erpc:call(node(), routing_table, stop, []),
     gen_statem:stop(?MODULE).
 
-
-%% @doc Sends a packet using the lowpan API.
+%-------------------------------------------------------------------------------
+%% @doc API function to send an IPv6 packet.
 %% @spec sendPacket(binary()) -> ok | {error_multicast_src} | {error_unspecified_addr}.
+%-------------------------------------------------------------------------------
 sendPacket(Ipv6Pckt) ->
     io:format("Transmission request~n"),
     PcktInfo = lowpan_core:getPcktInfo(Ipv6Pckt),
@@ -102,7 +103,10 @@ sendPacket(Ipv6Pckt) ->
                     Response
             end
     end.
-
+%-------------------------------------------------------------------------------
+%% @doc API function to send an IPv6 packet with performance metrics enabled. 
+%% @spec sendPacket(binary()) -> ok | {error_multicast_src} | {error_unspecified_addr}.
+%-------------------------------------------------------------------------------
 sendPacket(Ipv6Pckt, MetricEnabled) ->
     io:format("Transmission request~n"),
     PcktInfo = lowpan_core:getPcktInfo(Ipv6Pckt),
@@ -136,14 +140,13 @@ sendPacket(Ipv6Pckt, MetricEnabled) ->
                     ok; 
                 error_frag_size ->
                     error_frag_size
-            % after 10000->
-            %             error
             end
     end.
 
-
-%% @doc Sends a packet with extended hops left option enabled.
+%-------------------------------------------------------------------------------
+%% @doc API function to send an IPv6 packet with extended hops left option enabled.
 %% @spec extendedHopsleftTx(binary()) -> ok | {error_multicast_src} | {error_unspecified_addr} | {error_timeout}.
+%-------------------------------------------------------------------------------
 extendedHopsleftTx(Ipv6Pckt) ->
     io:format("New packet transmission ~n"),
     PcktInfo = lowpan_core:getPcktInfo(Ipv6Pckt),
@@ -168,8 +171,10 @@ extendedHopsleftTx(Ipv6Pckt) ->
             end
     end.
 
-%% @doc Sends an uncompressed datagram.
+%-------------------------------------------------------------------------------
+%% @doc API function to send an uncompressed IPv6 datagram.
 %% @spec sendUncDatagram(binary(), term(), map()) -> ok | {error_timeout}.
+%-------------------------------------------------------------------------------
 sendUncDatagram(Ipv6Pckt, FrameControl, MacHeader) ->
     gen_statem:cast(?MODULE, {datagram_tx, Ipv6Pckt, FrameControl, MacHeader, self()}),
     receive 
@@ -180,8 +185,10 @@ sendUncDatagram(Ipv6Pckt, FrameControl, MacHeader) ->
             error_timeout
     end.
 
-%% @doc Transmits a frame.
+%-------------------------------------------------------------------------------
+%% @doc API function to send a frame.
 %% @spec tx(binary(), term(), map()) -> ok | error_nalp.
+%-------------------------------------------------------------------------------
 tx(Frame, FrameControl, MacHeader) ->
     case Frame of 
         <<?NALP_DHTYPE,_/bitstring>> -> 
@@ -195,8 +202,10 @@ tx(Frame, FrameControl, MacHeader) ->
             end
     end.
 
-%% @doc Handles frame reception in the lowpan API.
+%-------------------------------------------------------------------------------
+%% @doc API function to handle frame reception
 %% @spec frameReception() -> term().
+%-------------------------------------------------------------------------------
 frameReception() ->
     io:format("Reception mode~n"),
     gen_statem:cast(?MODULE, {frame_rx, self()}),
@@ -218,19 +227,10 @@ frameReception() ->
     after ?REASSEMBLY_TIMEOUT ->
         reassembly_timeout
     end.
-    
-
-%% @doc Handles frame information reception.
-%% @spec frameInfoRx() -> term().
-frameInfoRx() ->
-    gen_statem:cast(?MODULE, {frame_info_rx, self()}),
-    receive
-        {additional_info, Info, _} ->
-            Info
-    after ?REASSEMBLY_TIMEOUT ->
-        gen_statem:call(?MODULE, {reassembly_timeout})
-    end.
-    
+     
+%-------------------------------------------------------------------------------
+% Input callback to handle new received frame.
+%-------------------------------------------------------------------------------
 inputCallback(Frame, _, _, _) ->
     {FC, MH, Datagram} = Frame,
     {IsMeshedPckt, FinalDstMacAdd, MeshPckInfo} = case lowpan_core:containsMeshHeader(Datagram) of
@@ -247,11 +247,13 @@ inputCallback(Frame, _, _, _) ->
     
     StateData = get_nodeData_value(state_data),
     
-    handleDatagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH, Datagram, StateData).
+    processFrame(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH, Datagram, StateData).
 
-%% @doc Main function for handling datagram processing.
+%-------------------------------------------------------------------------------
+%% @doc Processes new frame.
 %% @spec handleDatagram(boolean(), map(), binary(), binary(), term(), map(), binary(), map()) -> term().
-handleDatagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH, Datagram, StateData) ->
+%-------------------------------------------------------------------------------
+processFrame(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH, Datagram, StateData) ->
     DestAdd = lowpan_core:convertAddrToBin(FinalDstMacAdd),
     #{node_mac_addr := CurrNodeMacAdd} = StateData,
 
@@ -287,13 +289,10 @@ handleDatagram(IsMeshedPckt, MeshPckInfo, OriginatorAddr, FinalDstMacAdd, FC, MH
 
 %---------- States ---------------------------------------------
 
-%% @doc Input callback function for handling incoming frames.
-%% @spec inputCallback(tuple(), term(), term(), term()) -> term().
-callback_mode() ->
-    [state_functions].
-
-%% @doc Handles the idle state.
+%-------------------------------------------------------------------------------
+%% @doc In this state the machine waits to received transmission/reception request
 %% @spec idle(atom(), term(), map()) -> {next_state, atom(), map(), list()}.
+%-------------------------------------------------------------------------------
 idle(cast, {pckt_tx, Ipv6Pckt, PcktInfo, Extended_hopsleft, From}, Data) ->
     {next_state, tx_packet, Data#{data => {Ipv6Pckt, PcktInfo, Extended_hopsleft, From}}, [{next_event, internal, {tx_packet}}]}; 
 
@@ -313,8 +312,10 @@ idle(cast, {frame_rx, From}, Data) ->
 
 %---------- Tx frame state --------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the transmission of a frame.
 %% @spec tx_frame(atom(), term(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 tx_frame(internal, {tx_frame}, Data) ->
     #{data := {Frame, FrameControl, MacHeader, From}} = Data,
     Transmit = ieee802154:transmission({FrameControl, MacHeader, Frame}),
@@ -331,8 +332,10 @@ tx_frame(internal, {tx_frame}, Data) ->
 
 %---------- Tx datagram state ------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the transmission of a datagram.
 %% @spec tx_datagram(atom(), term(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 tx_datagram(internal, {tx_datagram}, Data) ->
     #{data := {Ipv6Pckt, FrameControl, MacHeader, From}} = Data,
     Transmit = ieee802154:transmission({FrameControl, MacHeader, <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>}),
@@ -347,8 +350,10 @@ tx_datagram(internal, {tx_datagram}, Data) ->
 
 %---------- Tx packet state -------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the transmission of a packet.
 %% @spec tx_packet(atom(), term(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 tx_packet(internal, {tx_packet}, Data) ->
     #{data := {Ipv6Pckt, PcktInfo, Extended_hopsleft, From}, 
         node_mac_addr := CurrNodeMacAdd, seqNum := SeqNum, fragment_tag := Tag} = Data,
@@ -451,8 +456,10 @@ tx_packet_metrics(internal, {tx_packet_metrics}, Data) ->
 
 %---------- Rx frame state ------------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the reception of a frame.
 %% @spec rx_frame(atom(), term(), map()) -> {next_state, atom(), map()} | {keep_state, map()}.
+%-------------------------------------------------------------------------------
 rx_frame(internal, {rx_frame}, Data) ->
     #{caller := From} = Data,
     {keep_state, Data#{caller => From}};
@@ -499,8 +506,10 @@ rx_frame(cast, {forward, Datagram, IsMeshedPckt, MeshPckInfo, FinalDstMacAdd, Cu
 
 %---------- Collect state -----------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the collection of fragments.
 %% @spec collect(atom(), term(), map()) -> {next_state, atom(), map()} | {keep_state, map()}.
+%-------------------------------------------------------------------------------
 collect(internal, {start_collect}, Data) ->
     #{is_meshed_pckt := IsMeshedPckt, originator_addr := OriginatorAddr, datagram := Datagram, 
     datagram_map := DatagramMap, caller := From, node_mac_addr := CurrNodeMacAdd} = Data,
@@ -549,8 +558,10 @@ collect(cast, {complete, IsMeshedPckt, OriginatorAddr, Key, UpdatedDatagram}, Da
 
 %---------- Reassembly state ------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the reassembly of fragments.
 %% @spec reassemble(atom(), term(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 reassemble(internal, {start_reassemble}, Data) ->
     %io:format("Data: ~p~n", [Data]),
     #{datagram_map := DatagramMap, caller := From, additional_info:=Info,  node_mac_addr := CurrNodeMacAdd, 
@@ -570,8 +581,10 @@ reassemble(internal, {start_reassemble}, Data) ->
 
 %---------- Forward state ---------------------------------
 
+%-------------------------------------------------------------------------------
 %% @doc Handles the forwarding of datagrams.
 %% @spec forward(atom(), term(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 forward(internal, {start_forward}, Data) ->
     #{datagram := Datagram, is_meshed_pckt := IsMeshedPckt, 
                     mesh_pck_info := MeshPckInfo, final_dst_mac_add := FinalDstMacAdd, 
@@ -605,8 +618,10 @@ forward(internal, {start_forward}, Data) ->
     
 %---------- Utility functions -----------------------------------
 
-%% @doc Sends a fragment of a packet.
+%-------------------------------------------------------------------------------
+%% @doc Sends a fragment
 %% @spec sendFragment(boolean(), binary(), binary(), map(), term(), integer()) -> {ok, integer()} | {Error, integer()}.
+%-------------------------------------------------------------------------------
 sendFragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC, Tag) ->
     Pckt = case RouteExist of
                 true ->
@@ -625,8 +640,10 @@ sendFragment(RouteExist, CompressedPacket, MeshedHdrBin, MH, FC, Tag) ->
             {Error, NoAck}
     end.
 
-%% @doc Sends multiple fragments of a packet.
+%-------------------------------------------------------------------------------
+%% @doc Sends list of fragments 
 %% @spec sendFragments(boolean(), list(), integer(), binary(), map(), term(), integer(), integer()) -> {ok, integer()}.
+%-------------------------------------------------------------------------------
 sendFragments(RouteExist, [{FragHeader, FragPayload} | Rest], PcktCounter, MeshedHdrBin, MH, FC, Tag, NoAckCnt) ->
     Pckt = case RouteExist of
                 true ->
@@ -652,8 +669,10 @@ sendFragments(_RouteExist, [], _PcktCounter, _MeshedHdrBin, _MH, _FC, _Tag, NoAc
     end,
     {ok, NoAckCnt}.
 
+%-------------------------------------------------------------------------------
 %% @doc Updates the datagram with new mesh header information.
 %% @spec update_datagram(map(), binary(), map()) -> binary() | {discard, term()}.
+%-------------------------------------------------------------------------------
 update_datagram(MeshInfo, Datagram, Data) ->
     HopsLeft = MeshInfo#meshInfo.hops_left, 
     
@@ -692,15 +711,19 @@ update_datagram(MeshInfo, Datagram, Data) ->
             <<BinMeshHeader/binary, Payload/bitstring>>
     end.
 
+%-------------------------------------------------------------------------------
 %% @doc Discards the datagram when hop count reaches zero.
 %% @spec discard_datagram(binary(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 discard_datagram(_, Data = #{caller := From})->
     io:format("Hop left value: 0, discarding the datagram~n"),
     From ! dtg_discarded,
     {next_state, rx_frame, Data}.
 
+%-------------------------------------------------------------------------------
 %% @doc Forwards a datagram to the next hop.
 %% @spec forward_datagram(binary(), term(), map(), map()) -> {next_state, atom(), map()}.
+%-------------------------------------------------------------------------------
 forward_datagram(Frame, FrameControl, MacHeader, Data = #{caller := From}) ->
     case Frame of 
         <<?NALP_DHTYPE,_/bitstring>> ->
@@ -732,18 +755,26 @@ handle_ack(Metrics) ->
     CompressionRatio = (CompPcktLen/OrigPcktLen),
     {ok, RTT, SuccessRate, CompressionRatio}.
 
+callback_mode() ->
+    [state_functions].
+%-------------------------------------------------------------------------------
 %% @doc Sets up ETS table for node information.
 %% @spec setup_node_info_ets() -> atom().
+%-------------------------------------------------------------------------------
 setup_node_info_ets() ->
     ets:new(nodeData, [named_table, public, {keypos, 1}]).
 
+%-------------------------------------------------------------------------------
 %% @doc Sets a value in the node data ETS table.
 %% @spec set_nodeData_value(term(), term()) -> ok.
+%-------------------------------------------------------------------------------
 set_nodeData_value(Key, Value) ->
     ets:insert(nodeData, {Key, Value}).
 
+%-------------------------------------------------------------------------------
 %% @doc Retrieves a value from the node data ETS table.
 %% @spec get_nodeData_value(term()) -> term() | undefined.
+%-------------------------------------------------------------------------------
 get_nodeData_value(Key) ->
     case ets:lookup(nodeData, Key) of
         [] ->
@@ -752,8 +783,10 @@ get_nodeData_value(Key) ->
             Value
     end.
 
+%-------------------------------------------------------------------------------
 %% @doc Sets up the IEEE 802.15.4 layer.
 %% @spec ieee802154_setup(binary()) -> ok.
+%-------------------------------------------------------------------------------
 ieee802154_setup(MacAddr)->
     ieee802154:start(#ieee_parameters{
         phy_layer = mock_phy_network, % uncomment when testing
