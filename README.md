@@ -105,7 +105,7 @@ robot:tx()
 
 ## Hardware tests setup 
 
-When sending data via GRiSP boards, a UWB sniffer can be used to capture the packets sent and analyse them in the Wireshark software. The sniffer configuration parameters are given below:
+When sending data via GRiSP boards, a [UWB sniffer](https://www.sewio.net/uwb-sniffer/) can be used to capture the packets sent and analyse them in the Wireshark software. The sniffer configuration parameters are given below:
 
 <p align="center">
 <img src="imgs/sniffer parameters.png" width=400>
