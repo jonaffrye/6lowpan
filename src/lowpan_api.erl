@@ -105,7 +105,7 @@ sendPacket(Ipv6Pckt) ->
     end.
 %-------------------------------------------------------------------------------
 %% @doc API function to send an IPv6 packet with performance metrics enabled. 
-%% @spec sendPacket(binary()) -> ok | {error_multicast_src} | {error_unspecified_addr}.
+%% @spec sendPacket(binary(), boolean()) -> ok | {error_multicast_src} | {error_unspecified_addr}.
 %-------------------------------------------------------------------------------
 sendPacket(Ipv6Pckt, MetricEnabled) ->
     io:format("Transmission request~n"),
