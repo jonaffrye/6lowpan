@@ -147,7 +147,7 @@ init_per_group_setup(Src, Dst, Payload, Config) ->
             source_address = Src,
             destination_address = Dst
         },
-    Packet = ipv6:buildIpv6Packet(IPv6Header, Payload), 
+    Packet = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload), 
     [
         {net_pid, NetPid},
         {network, Network},
@@ -184,7 +184,7 @@ init_per_group_udp_setup(Src, Dst, Payload, Config) ->
             checksum = 16#f88c
         },
 
-    Packet = ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
+    Packet = lowpan_ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
     [
         {net_pid, NetPid},
         {network, Network},

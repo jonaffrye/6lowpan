@@ -27,7 +27,7 @@
       Header :: binary(),
       Payload :: binary().
 getIpv6Pkt(Header, Payload) ->
-    ipv6:buildIpv6Packet(Header, Payload).
+    lowpan_ipv6:buildIpv6Packet(Header, Payload).
 
 %-------------------------------------------------------------------------------
 %% @doc create an uncompressed IPv6 packet 

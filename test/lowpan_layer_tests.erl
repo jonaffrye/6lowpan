@@ -19,7 +19,7 @@ pkt_encapsulation_test() ->
             source_address = 1,
             destination_address = 2
         },
-    IPv6Packet = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    IPv6Packet = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
     ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
     ?assertEqual(ToCheck, lowpan_core:pkt_encapsulation(IPv6Header, Payload)).
@@ -38,7 +38,7 @@ fragmentation_test() ->
             source_address = 1,
             destination_address = 2
         },
-    IPv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    IPv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     Fragments = lowpan_core:fragment_ipv6_packet(IPv6Pckt, byte_size(Payload)),
 
     %
@@ -132,7 +132,7 @@ datagram_info_test() ->
 %             source_address = 2,
 %             destination_address = 4
 %         },
-%     Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+%     Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
 %     FragmentList = lowpan_core:fragment_ipv6_packet(Ipv6Pckt),
 %     Fragments =

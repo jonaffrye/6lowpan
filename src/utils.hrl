@@ -63,7 +63,7 @@
     src_addr_mode = ?EXTENDED,
     dest_addr_mode = ?EXTENDED
 }).
--define(Ipv6Pckt, ipv6:buildIpv6Packet(?IPv6Header, ?Payload)).
+-define(Ipv6Pckt, lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload)).
 -define(MacHeader, #mac_header{src_addr = ?Node1MacAddress, dest_addr = ?Node2MacAddress}).
 
 

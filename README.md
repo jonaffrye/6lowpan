@@ -55,6 +55,37 @@ For real hardware transmission and reception using the GRiSP2 board, the Robot a
 
 **`rx()`**: To receive data.
 
+## Robot example 
+This code example below shows how to perform simple IPv6 packet transmission using the `Lowpan API`:
+
+```bash
+tx() ->
+    Payload = <<"Hello world">>,
+    PayloadLength = byte_size(Payload),
+    IPv6Header =
+        #ipv6_header{
+            version = 6,
+            traffic_class = 0,
+            flow_label = 0,
+            payload_length = PayloadLength,
+            next_header = 17,
+            hop_limit = 255,
+            source_address = ?Node1Address,
+            destination_address = ?Node2Address
+        },
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
+    lowpan_api:sendPacket(Ipv6Pckt, true).
+```
+This example shows how to perform a frame reception using the `Lowpan API`:
+
+```bash
+rx() ->
+    lowpan_api:frameReception(),
+    rx().
+```
+
+## Deployement
+
 To deploy the robot application onto the GRiSP 2 board, use the following command:
 
 ```bash

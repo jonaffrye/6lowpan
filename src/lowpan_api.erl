@@ -398,7 +398,7 @@ tx_packet_metrics(internal, {tx_packet_metrics}, Data) ->
     Payload = PcktInfo#ipv6PckInfo.payload,
     DestMacAddress = lowpan_core:getEUI64MacAddr(DestAddress),
     SenderMacAdd = lowpan_core:getEUI64MacAddr(SrcAddress),
-    PcktHeader = ipv6:getHeader(Ipv6Pckt),
+    PcktHeader = lowpan_ipv6:getHeader(Ipv6Pckt),
     io:format("Final destination: ~p~n", [DestMacAddress]),
     io:format("Searching next hop...~n"),
     {RouteExist, MeshedHdrBin, MH} = lowpan_core:getNextHop(CurrNodeMacAdd, SenderMacAdd, DestMacAddress, DestAddress, SeqNum+1, Extended_hopsleft),

@@ -1,4 +1,4 @@
--module(ipv6).
+-module(lowpan_ipv6).
 -export([buildIpv6UdpPacket/3, buildIpv6Header/1, buildUdpHeader/1, getHeader/1]).
 -export([buildIpv6Packet/2]).
 

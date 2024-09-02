@@ -66,7 +66,7 @@ pkt_encapsulation_test(_Config) ->
             source_address = <<1>>,
             destination_address = <<2>>
         },
-    IPv6Packet = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    IPv6Packet = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     DhTypebinary = <<?IPV6_DHTYPE:8, 0:16>>,
     ToCheck = <<DhTypebinary/binary, IPv6Packet/binary>>,
     ToCheck = lowpan_core:pktEncapsulation(IPv6Header, Payload),
@@ -74,7 +74,7 @@ pkt_encapsulation_test(_Config) ->
 
 
 unc_ipv6(_Config) ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
 
     Expected = <<?IPV6_DHTYPE:8, Ipv6Pckt/bitstring>>,
     Expected = lowpan_core:getUncIpv6(Ipv6Pckt).
@@ -93,7 +93,7 @@ iphc_pckt_16bit_addr(_Config) ->
             source_address = Node1Addr,
             destination_address = Node2Addr
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header,?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header,?Payload),
 
     InlineData = <<12:8>>,
     ExpectedHeader =
@@ -175,7 +175,7 @@ link_local_addr_pckt_comp(_Config) ->
             source_address = <<16#FE80:16, 0:48, ?Node1MacAddress/binary>>,
             destination_address = <<16#FE80:16, 0:48, ?Node2MacAddress/binary>>
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -222,7 +222,7 @@ multicast_addr_pckt_comp(_Config) ->
             destination_address = <<16#FF02:16, 0:48, ?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#01,
     Nh = 0,
@@ -277,7 +277,7 @@ global_context_pckt_comp1(_Config) ->
             destination_address = Destination_address
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#01,
     Nh = 0,
@@ -368,7 +368,7 @@ tcp_nh_pckt_comp(_Config) ->
             destination_address = <<16#FE80:16, 0:48,?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -413,7 +413,7 @@ icmp_nh_pckt_comp(_Config) ->
             destination_address = <<16#FE80:16, 0:48, ?Node2MacAddress/binary>>
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
 
     Tf = 2#11,
     Nh = 0,
@@ -527,7 +527,7 @@ fragmentation_test(_Config) ->
             source_address = <<1>>,
             destination_address = <<2>>
         },
-    IPv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    IPv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     Fragments = lowpan_core:fragmentIpv6Packet(IPv6Pckt, byte_size(Payload), false),
     ReassembledSize =
         lists:foldl(fun({_, Fragment}, Acc) -> byte_size(Fragment) + Acc end, 0, Fragments),
@@ -610,7 +610,7 @@ reassemble_full_ipv6_pckt_test(_Config) ->
             destination_address = <<2:128>>
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     io:format("Original pckt size ~p bytes~n", [byte_size(Ipv6Pckt)]),
     FragmentList = lowpan_core:fragmentIpv6Packet(Ipv6Pckt, byte_size(Ipv6Pckt), false),
 

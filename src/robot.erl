@@ -44,7 +44,7 @@
 % Sends uncompressed ipv6 packet format
 %-------------------------------------------------------------------------------
 tx_unc_ipv6() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     io:format("Frame ~p~n", [Ipv6Pckt]),
     io:format("Fragment size: ~p bytes~n", [byte_size(Ipv6Pckt)]),
 
@@ -70,7 +70,7 @@ tx_iphc_pckt() ->
 % Sends meshed and compressed header packet format
 %-------------------------------------------------------------------------------
 tx_msh_iphc_pckt() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, true),
 
     MeshHeader =
@@ -92,7 +92,7 @@ tx_msh_iphc_pckt() ->
 % Sends fragmented and compressed packet format
 %-------------------------------------------------------------------------------
 tx_frag_iphc_pckt() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     PcktLen = byte_size(Ipv6Pckt),
 
@@ -115,7 +115,7 @@ tx_frag_iphc_pckt() ->
 % Sends meshed, fragmented and compressed packet format
 %-------------------------------------------------------------------------------
 tx_msh_frag_iphc_pckt() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, true),
     PcktLen = byte_size(Ipv6Pckt),
 
@@ -148,7 +148,7 @@ tx_msh_frag_iphc_pckt() ->
 % Sends broadcast packet format
 %-------------------------------------------------------------------------------
 tx_broadcast_pckt() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     {CompressedHeader, _} = lowpan_core:compressIpv6Header(Ipv6Pckt, false),
     PcktLen = byte_size(Ipv6Pckt),
 
@@ -179,28 +179,28 @@ tx_broadcast_pckt() ->
 % Simple transmission to node 2
 %-------------------------------------------------------------------------------
 tx() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %-------------------------------------------------------------------------------
 % Simple transmission to node 3
 %-------------------------------------------------------------------------------
 tx3() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header3, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header3, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %-------------------------------------------------------------------------------
 % Simple transmission to node 4
 %-------------------------------------------------------------------------------
 tx4() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header4, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header4, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %-------------------------------------------------------------------------------
 % Simple transmission to node 5
 %-------------------------------------------------------------------------------
 tx5() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header5, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header5, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 
@@ -226,7 +226,7 @@ tx_big_payload(N) ->
             source_address = Node1Address,
             destination_address = Node2Address
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %% Tx to node 3
@@ -248,7 +248,7 @@ tx_big_payload3(N) ->
             source_address = Node1Address,
             destination_address = Node2Address
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %% Tx to node 4
@@ -270,7 +270,7 @@ tx_big_payload4(N) ->
             source_address = Node1Address,
             destination_address = Node2Address
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 %% Tx to node 5
@@ -292,7 +292,7 @@ tx_big_payload5(N) ->
             source_address = Node1Address,
             destination_address = Node2Address
         },
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, Payload),
     lowpan_api:sendPacket(Ipv6Pckt, true).
 
 
@@ -322,7 +322,7 @@ tx_unc_ipv6_udp() ->
             checksum = 16#f88c
         },
 
-    Ipv6Pckt = ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
     io:format("Frame ~p~n", [Ipv6Pckt]),
     io:format("Fragment size: ~p bytes~n", [byte_size(Ipv6Pckt)]),
 
@@ -355,7 +355,7 @@ tx_comp_ipv6_udp() ->
             checksum = 16#f88c
         },
 
-    Ipv6Pckt = ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, Payload),
     lowpan_api:sendPacket(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -382,7 +382,7 @@ tx_with_udp() ->
             checksum = 16#f88c
         },
 
-    Ipv6Pckt = ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6UdpPacket(IPv6Header, UdpHeader, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -401,7 +401,7 @@ msh_pckt_tx() ->
             destination_address = ?Node3Address
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, ?Payload),
     lowpan_api:sendPacket(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -420,14 +420,14 @@ msh_big_pckt_tx() ->
             destination_address = ?Node3Address
         },
 
-    Ipv6Pckt = ipv6:buildIpv6Packet(IPv6Header, ?BigPayload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(IPv6Header, ?BigPayload),
     lowpan_api:sendPacket(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
 % Extended hopsLeft packet transmission 
 %-------------------------------------------------------------------------------
 extendedHopsleftTx() ->
-    Ipv6Pckt = ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
+    Ipv6Pckt = lowpan_ipv6:buildIpv6Packet(?IPv6Header, ?Payload),
     lowpan_api:extendedHopsleftTx(Ipv6Pckt).
 
 %-------------------------------------------------------------------------------
@@ -445,16 +445,14 @@ tx_mesh_prefix() ->
             source_address = ?Node1Address,
             destination_address =  <<?MESH_LOCAL_PREFIX:16, 16#0DB8:16, 0:32, 2:8,0:48, MacAddress/binary>>
         },
-    Packet = ipv6:buildIpv6Packet(IPv6Header, ?Payload), 
+    Packet = lowpan_ipv6:buildIpv6Packet(IPv6Header, ?Payload), 
     lowpan_api:sendPacket(Packet).
 
 %-------------------------------------------------------------------------------
 % Data reception
 %-------------------------------------------------------------------------------
 rx() ->
-    grisp_led:color(2, red),
     lowpan_api:frameReception(), 
-    grisp_led:color(2, green),
     rx().
 
 %-------------------------------------------------------------------------------
