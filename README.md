@@ -1,6 +1,6 @@
 # 6LoWPAN for UWB communication
 
-This project was developed during my master thesis with the goal of implementing the 6LoWPAN protocol for [Ultra-Wideband (UWB)](https://fr.wikipedia.org/wiki/Ultra_wideband) communication on the [GRiSP 2](https://www.grisp.org/) embedded system, developed by [Stritzinger GmbH](https://www.stritzinger.com/).
+This project was developed during my master thesis with the goal of implementing the 6LoWPAN protocol for [Ultra-Wideband (UWB)](https://en.wikipedia.org/wiki/Ultra-wideband) communication on the [GRiSP 2](https://www.grisp.org/) embedded system, developed by [Stritzinger GmbH](https://www.stritzinger.com/).
 It is based on previous work by Gwendal Laurent available on this [git](https://github.com/GwendalLaurent/pmod_uwb) repository.
 
 
