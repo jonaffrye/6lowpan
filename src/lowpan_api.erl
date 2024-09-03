@@ -213,6 +213,7 @@ frameReception() ->
         {reassembled_packet, IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket} ->
             io:format("Datagram reassembled, start packet decoding ~n"),
             _DecodedPacket = lowpan_core:decodeIpv6Pckt(IsMeshedPckt, OriginatorMacAddr, CurrNodeMacAdd, ReassembledPacket),
+            % DecodedPacket; % Uncomment this line and comment out the next one to retrieve the decoded packet instead of the reassembled one
             ReassembledPacket; 
         dtg_discarded -> 
             io:format("Datagram successfully discarded ~n"),
