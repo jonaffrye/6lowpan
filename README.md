@@ -92,7 +92,40 @@ To deploy the robot application onto the GRiSP 2 board, use the following comman
 rebar3 as node1 grisp deploy
 ```
 
-The current implementation allows the code to be deployed on up to five GRiSP boards. To do this, change `node1` to `nodeX`, where X is the board number. The MAC address of each GRiSP boards can be found in the config folder.
+The current implementation allows the code to be deployed on up to five GRiSP boards. To do this, change `node1` to `nodeX`, where X is the board number. 
+
+### Routing table
+
+You can assign a routing table to each board by modifying the routing table option in the following line of the `robot` application:
+
+```bash
+
+lowpan_api:start(#{node_mac_addr => NodeMacAddr, routing_table => ?Default_routing_table}),
+    
+```
+
+The default routing table can be found in the `lowpan.hrl` file and is defined as follows:
+
+```bash 
+-define(Default_routing_table,
+        #{?node1_addr => ?node1_addr,
+          ?node2_addr => ?node2_addr,
+          ?node3_addr => ?node3_addr, 
+          ?node4_addr => ?node4_addr, 
+          ?node5_addr => ?node5_addr}).
+
+```
+
+In this configuration, each node has a direct link to every other node. For example, if node 1 wants to send a packet to node 2, the table will return node 2's address, allowing a direct connection to node 2. Other configurations can be found in `lowpan.hrl`, for example:
+
+```bash
+-define(Node2_routing_table, % 2 -> 3 -> 5
+        #{?node5_addr => ?node3_addr}).
+``` 
+
+In this configuration, if node 2 wants to send data to node 5, it will first send it to node 3. The MAC addresses of each GRiSP board can be found in the config folder.
+
+## manual transmission
 
 If you want to manually perform the transmissions, it can be done over serial communication, a tutorial can be found [here](https://github.com/grisp/grisp/wiki/Connecting-over-Serial).
 
